@@ -1,0 +1,6 @@
+authors = ["Andreas Humenberger <ahumenberger@gmail.com>"]
+name = "Absynth"
+uuid = "198fb612-3ccb-11e9-3f7d-cd8c0d4e7bc8"
+version = "0.1.0"
+
+[deps]
