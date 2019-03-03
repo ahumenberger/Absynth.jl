@@ -18,6 +18,12 @@ function free_symbols(ex::Expr)
     Base.unique(ls)
 end
 
+function clear_denom(f::Basic)
+    ls = Recurrences.summands(f) |> Iterators.flatten
+    ds = denom.(ls)
+    val = Recurrences.lcm2(ds...)
+    f*val
+end
 
 IntOrRat = Union{Int,Rational}
 
@@ -112,17 +118,39 @@ Synthesizer(args...) = Synthesizer{Z3Solver}(args...)
 
 template(s::Synthesizer) = s.tmpl
 constraints(s::Synthesizer) = s.cstr
+inv(s::Synthesizer) = s.inv
 
 function constraints!(s::Synthesizer, cstr::Expr...)
+    # TODO: check validity
     push!(s.cstr, cstr...)
 end
 
-function _constraints!(s::Synthesizer)
+function invariants!(s::Synthesizer, invs::Expr...)
+    # TODO: check validity
+    push!(s.invs, invs...)
+end
+
+function _constraints!(s::Synthesizer, solver::NLSolver)
     sys = lrs(template(s))
     cforms = Recurrences.solve(sys)
 
-    expr = expression.(cforms)
-    @info "" expr convert.(Expr, expr)
+    ivars = Dict(Recurrences.initvariable(f, 0) => f for f in sys.funcs)
+
+    @info "" cforms
+    d = [cf.func => expression(cf) for cf in cforms]
+    @info "" d
+    @capture(inv(s), lhs_ == rhs_)
+    expr = Basic(lhs) - Basic(rhs)
+    expr = subs(expr, d...)
+    expr = subs(expr, ivars...)
+    expr = expand(expr * denominator(expr))
+
+    cfs = Recurrences.coeffs(expr, sys.arg)
+
+    cstr = [Expr(:call, :(==), 0, convert(Expr, c)) for c in cfs]
+
+    @info "" cfs
+    NLSat.constraints!(solver, cstr...)
 end
 
 function solve(s::Synthesizer{T}) where {T}
@@ -132,11 +160,11 @@ function solve(s::Synthesizer{T}) where {T}
     t = promote_type(values(args(template(s)))...)
     vs = Dict{Symbol,Type}(map(x -> x=>t, vars(template(s))))
     @info "" vs
-    variables!(solver, args(template(s))..., vs...)
+    NLSat.variables!(solver, args(template(s))..., vs...)
     if !isempty(constraints(s))
         constraints!(solver, constraints(s)...)
     end
-    _constraints!(s)
+    _constraints!(s, solver)
 
     # status, model = solve(solver)
     # @info "Synthesis" status model

@@ -19,7 +19,7 @@ end
 abstract type NLSolver end
 
 function variables!(s::NLSolver, d::Pair{Symbol,Type}...) end
-function constraint!(s::NLSolver, c::Expr...) end
+function constraints!(s::NLSolver, c::Expr...) end
 function solve(s::NLSolver) end
 
 # ------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ struct Z3Solver <: NLSolver
     Z3Solver() = new(z3.Solver(), Dict(), [])
 end
 
-function variables!(s::Z3Solver, d::Pair{Symbol,DataType}...)
+function variables!(s::Z3Solver, d::Pair{Symbol,Type}...)
     for (k, v) in d
         if v != Int
             @warn "Type $v not supported, using Int: $k"
