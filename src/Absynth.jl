@@ -56,13 +56,19 @@ args(t::LoopTemplate) = t.args
 vars(t::LoopTemplate) = t.vars
 body(t::LoopTemplate) = t.body
 
-function (t::LoopTemplate)(vals::Union{Int,Rational}...; ivals::Pair{Symbol,IntOrRat}...)
+function (t::LoopTemplate)(vals::Union{Int,Rational}...)
     @assert length(vals) <= length(t.args) "Too many arguments"
     body = t.body
+    vars = collect(keys(t.args))
     for (i, v) in enumerate(vals)
-        body = [MacroTools.replace(x, t.args[i], v) for x in body]
+        body = [MacroTools.replace(x, vars[i], v) for x in body]
     end
-    LoopTemplate(t.name, t.args[length(vals)+1:end], body)
+    LoopTemplate(t.name, Dict(collect(t.args)[length(vals)+1:end]), body)
+end
+
+function initvalues!(t::LoopTemplate, v::Vector{IntOrRat})
+    # TODO: figure out how to handle initial values
+    append!(t.ivals, v)
 end
 
 replace_post(ex, s, s′) = MacroTools.postwalk(x -> x == s ? s′ : x, ex)
@@ -83,8 +89,6 @@ function lrs(t::LoopTemplate)
 
     lhss = [Expr(:call, v, Expr(:call, :+, lc, 1)) for v in lhss]
 
-    @info "" lhss rhss
-
     entries = Recurrences.LinearEntry{Basic}[]    
     for (lhs, rhs) in zip(lhss, rhss)
         expr = Expr(:call, :-, lhs, rhs)
@@ -94,7 +98,7 @@ function lrs(t::LoopTemplate)
 
     sys = LinearRecSystem(Basic(lc))
     push!(sys, entries...)
-    @info "" sys
+    @debug "Rec system" sys
     sys
 end
 
@@ -117,7 +121,7 @@ mutable struct Synthesizer
 end
 
 Synthesizer(tmpl::LoopTemplate) = Synthesizer(tmpl, Expr[], Expr[], Expr[], true)
-# Synthesizer(args...) = Synthesizer{Z3Solver}(args...)
+Synthesizer(tmpl::LoopTemplate, invs::Expr...) = Synthesizer(tmpl, invs, Expr[], Expr[], true)
 
 template(s::Synthesizer) = s.tmpl
 constraints(s::Synthesizer) = s.cstr
@@ -141,9 +145,9 @@ function _constraints!(s::Synthesizer)
 
     ivars = Dict(Recurrences.initvariable(f, 0) => f for f in sys.funcs)
 
-    @info "" cforms
+    @debug "Closed forms" cforms
     d = [cf.func => expression(cf) for cf in cforms]
-    @info "" d
+    @debug "Replacement dicitonary" d
 
     for invariant in invariants(s)
         @capture(invariant, lhs_ == rhs_)
@@ -153,11 +157,11 @@ function _constraints!(s::Synthesizer)
         expr = expand(expr * denominator(expr))
 
         cfs = Recurrences.coeffs(expr, sys.arg)
+        @debug "Coefficients from invariant" cfs
 
         cstr = [Expr(:call, :(==), 0, convert(Expr, c)) for c in cfs]
 
         push!(s.invcstr, cstr...)
-        @info "" cfs
     end
     s.updated = false
 end
@@ -170,10 +174,10 @@ function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
 
     solver = T()
     # use promoted type for loop variables
-    @info "" values(args(template(s)))
+    @debug "Types for unknowns" types = args(template(s))
     t = promote_type(values(args(template(s)))...)
     vs = Dict{Symbol,Type}(map(x -> x=>t, vars(template(s))))
-    @info "" vs
+    @debug "Promotion types for loop variables" types = vs
     NLSat.variables!(solver, args(template(s))..., vs...)
     if !isempty(constraints(s))
         NLSat.constraints!(solver, constraints(s)...)
@@ -183,7 +187,16 @@ function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
     end
 
     status, model = NLSat.solve(solver)
-    @info "Synthesis" status model
+    @debug "Result of $T" status model
+    lt = template(s)
+    undef = setdiff(keys(args(lt)), keys(model))
+    if !isempty(undef)
+        # TODO: deal with unknowns which do not appear in model
+        for v in undef
+            push!(model, v => 0)
+        end
+    end
+    lt([model[v] for v in keys(args(lt))]...)
 end
 
 # ------------------------------------------------------------------------------
@@ -193,13 +206,9 @@ macro template(input)
     @capture(input, name_(args__) = begin assignments__ end)
 
     tname = [name]
-
-    @info "" tname args assignments
-
     args = Dict{Any,Any}(map(x -> MacroTools.splitarg(x)[1:2], args))
     # set default variable type to Rational
     replace!(args) do kv
-        println(last(kv) == :Any)
         last(kv) == :Any ? first(kv) => Rational{Int} : first(kv) => eval(last(kv))
     end
     args = convert(Dict{Symbol,Type}, args)
@@ -217,5 +226,7 @@ end
 #     constraint!(s, :(b > 0))
 #     solve(s)
 # end
+
+include("show.jl")
 
 end # module
