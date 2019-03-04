@@ -38,7 +38,7 @@ end
 function variables!(s::Z3Solver, d::Pair{Symbol,Type}...)
     for (k, v) in d
         if v != Int
-            @warn "Type $v not supported, using Int: $k"
+            @warn "Type $v not supported, using $(Int64): $k"
             v = Int
         end
         push!(s.vars, k => Z3Int(string(k)))

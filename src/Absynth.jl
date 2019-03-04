@@ -8,6 +8,7 @@ using SymEngine
 using Recurrences
 
 export @template, LoopTemplate, loop
+export Synthesizer, solve, constraints!, invariants!
 
 # ------------------------------------------------------------------------------
 
@@ -107,18 +108,21 @@ end
 
 # ------------------------------------------------------------------------------
 
-struct Synthesizer{T<:NLSolver}
+mutable struct Synthesizer
     tmpl::LoopTemplate
-    inv::Expr
-    cstr::Vector{Expr}
+    invs::Vector{Expr}
+    cstr::Vector{Expr}      # user-defined constraints
+    invcstr::Vector{Expr}   # constraints induced by invariants
+    updated::Bool           # indicates whether constraints have to be recomputed
 end
 
-Synthesizer{T}(tmpl::LoopTemplate, inv::Expr) where {T} = Synthesizer{T}(tmpl, inv, Expr[])
-Synthesizer(args...) = Synthesizer{Z3Solver}(args...)
+Synthesizer(tmpl::LoopTemplate) = Synthesizer(tmpl, Expr[], Expr[], Expr[], true)
+# Synthesizer(args...) = Synthesizer{Z3Solver}(args...)
 
 template(s::Synthesizer) = s.tmpl
 constraints(s::Synthesizer) = s.cstr
-inv(s::Synthesizer) = s.inv
+invariants(s::Synthesizer) = s.invs
+invconstraints(s::Synthesizer) = s.invcstr
 
 function constraints!(s::Synthesizer, cstr::Expr...)
     # TODO: check validity
@@ -127,10 +131,11 @@ end
 
 function invariants!(s::Synthesizer, invs::Expr...)
     # TODO: check validity
+    s.updated = true
     push!(s.invs, invs...)
 end
 
-function _constraints!(s::Synthesizer, solver::NLSolver)
+function _constraints!(s::Synthesizer)
     sys = lrs(template(s))
     cforms = Recurrences.solve(sys)
 
@@ -139,21 +144,30 @@ function _constraints!(s::Synthesizer, solver::NLSolver)
     @info "" cforms
     d = [cf.func => expression(cf) for cf in cforms]
     @info "" d
-    @capture(inv(s), lhs_ == rhs_)
-    expr = Basic(lhs) - Basic(rhs)
-    expr = subs(expr, d...)
-    expr = subs(expr, ivars...)
-    expr = expand(expr * denominator(expr))
 
-    cfs = Recurrences.coeffs(expr, sys.arg)
+    for invariant in invariants(s)
+        @capture(invariant, lhs_ == rhs_)
+        expr = Basic(lhs) - Basic(rhs)
+        expr = subs(expr, d...)
+        expr = subs(expr, ivars...)
+        expr = expand(expr * denominator(expr))
 
-    cstr = [Expr(:call, :(==), 0, convert(Expr, c)) for c in cfs]
+        cfs = Recurrences.coeffs(expr, sys.arg)
 
-    @info "" cfs
-    NLSat.constraints!(solver, cstr...)
+        cstr = [Expr(:call, :(==), 0, convert(Expr, c)) for c in cfs]
+
+        push!(s.invcstr, cstr...)
+        @info "" cfs
+    end
+    s.updated = false
 end
 
-function solve(s::Synthesizer{T}) where {T}
+function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
+    @assert !isempty(invariants(s)) "No invariants specified."
+    if s.updated
+        _constraints!(s)
+    end
+
     solver = T()
     # use promoted type for loop variables
     @info "" values(args(template(s)))
@@ -162,12 +176,14 @@ function solve(s::Synthesizer{T}) where {T}
     @info "" vs
     NLSat.variables!(solver, args(template(s))..., vs...)
     if !isempty(constraints(s))
-        constraints!(solver, constraints(s)...)
+        NLSat.constraints!(solver, constraints(s)...)
     end
-    _constraints!(s, solver)
+    if !isempty(invconstraints(s))
+        NLSat.constraints!(solver, invconstraints(s)...)
+    end
 
-    # status, model = solve(solver)
-    # @info "Synthesis" status model
+    status, model = NLSat.solve(solver)
+    @info "Synthesis" status model
 end
 
 # ------------------------------------------------------------------------------
@@ -191,15 +207,15 @@ macro template(input)
     return esc(:($name = LoopTemplate($(tname)..., $(args), convert(Vector{Expr}, $(assignments)))))
 end
 
-function test()
-    @template freire(a, b) = begin
-        x = x + a
-        y = y + b
-    end
+# function test()
+#     @template freire(a, b) = begin
+#         x = x + a
+#         y = y + b
+#     end
     
-    s = Synthesizer(freire, :(x - y == 0))
-    constraint!(s, :(b > 0))
-    synth(s)
-end
+#     s = Synthesizer(freire, :(x - y == 0))
+#     constraint!(s, :(b > 0))
+#     solve(s)
+# end
 
 end # module
