@@ -7,7 +7,7 @@ using Absynth.NLSat
 using SymEngine
 using Recurrences
 
-export @template, LoopTemplate, loop
+export LoopTemplate, loop
 export Synthesizer, solve, constraints!, invariants!
 
 # ------------------------------------------------------------------------------
@@ -44,8 +44,17 @@ struct LoopTemplate
         end
 
         fsyms = Iterators.flatten(free_symbols.(body))
-        left = setdiff(fsyms, union(keys(args), vars))
+        vset = union(keys(args), vars)
+        left = setdiff(fsyms, vset)
         @assert isempty(left) "Neither loop variables nor unknowns: $left"
+
+        notneeded = setdiff(keys(args), fsyms)
+        if !isempty(notneeded)
+            for v in notneeded
+                delete!(args, v)
+            end
+            @warn "Too many unknowns specified: $(join(notneeded, ","))"
+        end
 
         new(name, args, body, vars, [])
     end
@@ -128,15 +137,27 @@ constraints(s::Synthesizer) = s.cstr
 invariants(s::Synthesizer) = s.invs
 invconstraints(s::Synthesizer) = s.invcstr
 
+isconstraint(c::Expr) = c.head == :call && c.args[1] in [:(==), :(<=), :(>=), :(<), :(>), :(!=)]
+
 function constraints!(s::Synthesizer, cstr::Expr...)
-    # TODO: check validity
-    push!(s.cstr, cstr...)
+    for c in cstr
+        if isconstraint(c)
+            push!(s.cstr, c)
+        else
+            @error "Only equalities and inequalties allowed. Ignoring $c"
+        end
+    end
 end
 
 function invariants!(s::Synthesizer, invs::Expr...)
-    # TODO: check validity
-    s.updated = true
-    push!(s.invs, invs...)
+    for c in invs
+        if @capture(c, lhs_ == rhs_)
+            s.updated = true
+            push!(s.invs, c)
+        else
+            @error "Only equalities and inequalties allowed. Ignoring $c"
+        end
+    end
 end
 
 function _constraints!(s::Synthesizer)
@@ -188,33 +209,22 @@ function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
 
     status, model = NLSat.solve(solver)
     @debug "Result of $T" status model
-    lt = template(s)
-    undef = setdiff(keys(args(lt)), keys(model))
-    if !isempty(undef)
-        # TODO: deal with unknowns which do not appear in model
-        for v in undef
-            push!(model, v => 0)
+    if status == NLSat.sat
+        lt = template(s)
+        undef = setdiff(keys(args(lt)), keys(model))
+        if !isempty(undef)
+            # TODO: deal with unknowns which do not appear in model
+            for v in undef
+                push!(model, v => 0)
+            end
         end
+        lt([model[v] for v in keys(args(lt))]...)
+    else
+        @error "No solution exists. Result of $T: $status"
     end
-    lt([model[v] for v in keys(args(lt))]...)
 end
 
 # ------------------------------------------------------------------------------
-
-macro template(input)
-
-    @capture(input, name_(args__) = begin assignments__ end)
-
-    tname = [name]
-    args = Dict{Any,Any}(map(x -> MacroTools.splitarg(x)[1:2], args))
-    # set default variable type to Rational
-    replace!(args) do kv
-        last(kv) == :Any ? first(kv) => Rational{Int} : first(kv) => eval(last(kv))
-    end
-    args = convert(Dict{Symbol,Type}, args)
-
-    return esc(:($name = LoopTemplate($(tname)..., $(args), convert(Vector{Expr}, $(assignments)))))
-end
 
 # function test()
 #     @template freire(a, b) = begin
@@ -228,5 +238,6 @@ end
 # end
 
 include("show.jl")
+include("macro.jl")
 
 end # module

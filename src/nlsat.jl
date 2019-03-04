@@ -38,7 +38,7 @@ end
 function variables!(s::Z3Solver, d::Pair{Symbol,Type}...)
     for (k, v) in d
         if v != Int
-            @warn "Type $v not supported, using $(Int64): $k"
+            # @warn "Type $v not supported, using $(Int64): $k"
             v = Int
         end
         push!(s.vars, k => Z3Int(string(k)))
@@ -78,6 +78,7 @@ function _check(s::Z3Solver)
 end
 
 function solve(s::Z3Solver)
+    @warn "$(typeof(s)) only supports Integer solutions for now."
     res = _check(s)
     if res == sat
         m = s.ptr.model()
