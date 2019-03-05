@@ -7,7 +7,7 @@ using Absynth.NLSat
 using SymEngine
 using Recurrences
 
-export LoopTemplate, loop
+export LoopTemplate, setvalues, setvalues!
 export Synthesizer, solve, constraints!, invariants!
 
 # ------------------------------------------------------------------------------
@@ -27,13 +27,16 @@ function clear_denom(f::Basic)
 end
 
 IntOrRat = Union{Int,Rational}
+CoeffType = Union{Symbol,Int,Rational}
 
 struct LoopTemplate
-    name::Symbol
-    args::Dict{Symbol,Type}
-    body::Vector{Expr}
-    vars::Vector{Symbol}
-    ivals::Vector{IntOrRat}
+    name::Symbol                    # template name
+    args::Dict{Symbol,Type}         # unknowns in loop body
+    vars::Dict{Symbol,Type}         # loop variables
+    body::Vector{Expr}              # loop body
+    init::Vector{Expr}              # assignments before loop
+    avals::Dict{Symbol,CoeffType}   # values for arguments
+    ivals::Dict{Symbol,CoeffType}   # initial values for loop variables
 
     function LoopTemplate(name::Symbol, args::Dict{Symbol,Type}, body::Vector{Expr})
         vars = Symbol[]
@@ -56,36 +59,70 @@ struct LoopTemplate
             @warn "Too many unknowns specified: $(join(notneeded, ","))"
         end
 
-        new(name, args, body, vars, [])
+        # use promoted type for loop variables
+        ptype = promote_type(values(args)...)
+        vars = Dict{Symbol,Type}(map(x -> x=>ptype, vars))
+        @debug "Type maps" args vars
+
+        avals = Dict(x=>x for x in keys(args))
+        ivals = Dict(Symbol(Recurrences.initvariable(x, 0))=>Symbol(Recurrences.initvariable(x, 0)) for x in keys(vars))
+        @debug "Value maps" avals ivals
+
+        init = [Expr(:call, :(=), v, Symbol(Recurrences.initvariable(v, 0))) for v in keys(vars)]
+        @debug "Code" body init
+
+        new(name, args, vars, body, init, avals, ivals)
     end
+
+    LoopTemplate(t::LoopTemplate) = new(t.name, copy(t.args), copy(t.vars), copy(t.body), copy(t.init), copy(t.avals), copy(t.ivals))
 end
 
 name(t::LoopTemplate) = t.name
-args(t::LoopTemplate) = t.args
-vars(t::LoopTemplate) = t.vars
-body(t::LoopTemplate) = t.body
+args(t::LoopTemplate) = keys(t.args)
+argmap(t::LoopTemplate) = t.args
+vars(t::LoopTemplate) = keys(t.vars)
+varmap(t::LoopTemplate) = t.vars
+bodyexpr(t::LoopTemplate) = t.body
+initexpr(t::LoopTemplate) = t.init
+argvalues(t::LoopTemplate) = t.avals
+initvalues(t::LoopTemplate) = t.ivals
 
-function (t::LoopTemplate)(vals::Union{Int,Rational}...)
-    @assert length(vals) <= length(t.args) "Too many arguments"
-    body = t.body
-    vars = collect(keys(t.args))
-    for (i, v) in enumerate(vals)
-        body = [MacroTools.replace(x, vars[i], v) for x in body]
+Base.copy(t::LoopTemplate) = LoopTemplate(t)
+
+function setvalues!(t::LoopTemplate, d::Dict{Symbol,T}) where {T<:CoeffType}
+    for k in args(t)
+        if haskey(d, k)
+            t.avals[k] = d[k]
+        end
     end
-    LoopTemplate(t.name, Dict(collect(t.args)[length(vals)+1:end]), body)
+    for k in keys(initvalues(t))
+        if haskey(d, k)
+            t.ivals[k] = d[k]
+        end
+    end
+    t
 end
+setvalues!(t::LoopTemplate, d::Pair...) = setvalues!(t, Dict(d))
 
-function initvalues!(t::LoopTemplate, v::Vector{IntOrRat})
-    # TODO: figure out how to handle initial values
-    append!(t.ivals, v)
-end
+setvalues(t::LoopTemplate, d::Dict) = setvalues!(copy(t), d)
+setvalues(t::LoopTemplate, d::Pair...) = setvalues(t, Dict(d))
+
+# function (t::LoopTemplate)(vals::Union{Int,Rational}...)
+#     @assert length(vals) <= length(t.args) "Too many arguments"
+#     body = t.body
+#     vars = collect(keys(t.args))
+#     for (i, v) in enumerate(vals)
+#         body = [MacroTools.replace(x, vars[i], v) for x in body]
+#     end
+#     LoopTemplate(t.name, Dict(collect(t.args)[length(vals)+1:end]), body)
+# end
 
 replace_post(ex, s, s′) = MacroTools.postwalk(x -> x == s ? s′ : x, ex)
 
 function lrs(t::LoopTemplate)
     lhss = Symbol[]
     rhss = Expr[]
-    for assign in body(t)
+    for assign in bodyexpr(t)
         @capture(assign, lhs_ = rhs_)
         push!(lhss, lhs)
         push!(rhss, unblock(rhs))
@@ -114,7 +151,7 @@ end
 function loop(t::LoopTemplate; iterations::Int = 10)
     quote
         for _ in 1:$iterations
-            $(t.body...)
+            $(bodyexpr(t)...)
         end
     end
 end
@@ -164,7 +201,7 @@ function _constraints!(s::Synthesizer)
     sys = lrs(template(s))
     cforms = Recurrences.solve(sys)
 
-    ivars = Dict(Recurrences.initvariable(f, 0) => f for f in sys.funcs)
+    # ivars = Dict(Recurrences.initvariable(f, 0) => f for f in sys.funcs)
 
     @debug "Closed forms" cforms
     d = [cf.func => expression(cf) for cf in cforms]
@@ -174,7 +211,7 @@ function _constraints!(s::Synthesizer)
         @capture(invariant, lhs_ == rhs_)
         expr = Basic(lhs) - Basic(rhs)
         expr = subs(expr, d...)
-        expr = subs(expr, ivars...)
+        # expr = subs(expr, ivars...)
         expr = expand(expr * denominator(expr))
 
         cfs = Recurrences.coeffs(expr, sys.arg)
@@ -194,12 +231,10 @@ function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
     end
 
     solver = T()
-    # use promoted type for loop variables
-    @debug "Types for unknowns" types = args(template(s))
-    t = promote_type(values(args(template(s)))...)
-    vs = Dict{Symbol,Type}(map(x -> x=>t, vars(template(s))))
-    @debug "Promotion types for loop variables" types = vs
-    NLSat.variables!(solver, args(template(s))..., vs...)
+
+    tmpl = template(s)
+    ivars = Dict{Symbol,Type}(Symbol(Recurrences.initvariable(k, 0))=>v for (k,v) in varmap(tmpl))
+    NLSat.variables!(solver, argmap(tmpl)..., ivars...)
     if !isempty(constraints(s))
         NLSat.constraints!(solver, constraints(s)...)
     end
@@ -210,15 +245,14 @@ function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
     status, model = NLSat.solve(solver)
     @debug "Result of $T" status model
     if status == NLSat.sat
-        lt = template(s)
-        undef = setdiff(keys(args(lt)), keys(model))
+        undef = setdiff(args(tmpl), keys(model))
         if !isempty(undef)
             # TODO: deal with unknowns which do not appear in model
             for v in undef
                 push!(model, v => 0)
             end
         end
-        lt([model[v] for v in keys(args(lt))]...)
+        return setvalues(tmpl, Dict{Symbol,CoeffType}(model))
     else
         @error "No solution exists. Result of $T: $status"
     end
