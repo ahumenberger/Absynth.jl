@@ -18,6 +18,27 @@ macro template(input)
     return esc(:($name = LoopTemplate($(tname)..., $(args), convert(Vector{Expr}, $(assignments)))))
 end
 
+macro generictemplate(name, vars...)
+    esc(quote
+        count = 0
+        args = Dict{Symbol,Type}()
+        function inc()
+            global count += 1
+            s = Symbol("ω$count")
+            push!(args, s=>Rational{Int})
+            s
+        end
+        body = Expr[]
+        for (i,v) in enumerate($vars)
+            # @info inc()
+            prev = [Expr(:call, :(*), inc(), $(vars)[j]) for j in i-1:-1:1]
+            ex = Expr(:call, :(=), v, Expr(:call, :(+), v, prev..., inc()))
+            push!(body, ex)
+        end
+        $name = LoopTemplate(:test, args, body)
+    end)
+end
+
 function splitformula(expr)
     if @capture(expr, e1_ && e2_)
         return [[e1]; splitformula(e2)]

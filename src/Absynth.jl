@@ -128,7 +128,7 @@ function lrs(t::LoopTemplate)
         push!(rhss, unblock(rhs))
     end
 
-    lc = :n
+    lc = :nn
     for (i, v) in enumerate(lhss)
         rhss = [replace_post(x, v, (i < j ? Expr(:call, v, Expr(:call, :+, lc, 1)) : Expr(:call, v, lc))) for (j, x) in enumerate(rhss)]
     end
