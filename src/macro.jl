@@ -1,4 +1,4 @@
-export @template, @synth
+export @template, @generictemplate, @synth
 
     # @template freire(a, b) = begin
     #     x = x + a
@@ -30,9 +30,8 @@ macro generictemplate(name, vars...)
         end
         body = Expr[]
         for (i,v) in enumerate($vars)
-            # @info inc()
-            prev = [Expr(:call, :(*), inc(), $(vars)[j]) for j in i-1:-1:1]
-            ex = Expr(:call, :(=), v, Expr(:call, :(+), v, prev..., inc()))
+            prev = [Expr(:call, :(*), inc(), $(vars)[j]) for j in i+1:length($vars)]
+            ex = Expr(:(=), v, Expr(:call, :(+), v, prev..., inc()))
             push!(body, ex)
         end
         $name = LoopTemplate(:test, args, body)
