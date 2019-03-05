@@ -91,4 +91,36 @@ function solve(s::Z3Solver)
     res, nothing
 end
 
+# ------------------------------------------------------------------------------
+
+if false
+
+using Mathematica
+
+export MathematicaSolver
+
+struct MathematicaSolver <: NLSolver
+    vars::Dict{Symbol,Type}
+    cstr::Vector{Expr}
+    MathematicaSolver() = new(Dict(), [])
+end
+
+function variables!(s::MathematicaSolver, d::Pair{Symbol,Type}...)
+    push!(s.vars, d...)
+end
+
+function constraints!(s::MathematicaSolver, cstr::Expr...)
+    push!(s.cstr, cstr...)
+end
+
+function solve(s::MathematicaSolver)
+    cstr = Expr(:braces, s.cstr...)
+    vars = Expr(:braces, keys(s.vars)...)
+    @info "" cstr vars
+    result = NSolve(cstr, vars, :Rationals)
+    @info "Mathematica result" result
+end
+
+end # if
+
 end # module
