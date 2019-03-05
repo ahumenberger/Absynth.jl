@@ -1,6 +1,10 @@
-authors = ["Andreas Humenberger <ahumenberger@gmail.com>"]
 name = "Absynth"
 uuid = "198fb612-3ccb-11e9-3f7d-cd8c0d4e7bc8"
+authors = ["Andreas Humenberger <ahumenberger@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+Recurrences = "618f9978-cfe8-11e8-0262-8317e6e32198"
+SymEngine = "123dc426-2d89-5057-bbad-38513e3affd8"
