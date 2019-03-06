@@ -37,8 +37,11 @@ struct LoopTemplate
     init::Vector{Expr}              # assignments before loop
     avals::Dict{Symbol,CoeffType}   # values for arguments
     ivals::Dict{Symbol,CoeffType}   # initial values for loop variables
+    cforms::Vector{Recurrences.ClosedForm}     # closed form solutions
 
     function LoopTemplate(name::Symbol, args::Dict{Symbol,Type}, body::Vector{Expr})
+        @assert !isempty(args) "No unknowns specified"
+        @assert !isempty(body) "Template is empty"
         vars = Symbol[]
         for assign in body
             valid = @capture(assign, lhs_Symbol = rhs_) && Base.isidentifier(lhs)
@@ -71,10 +74,14 @@ struct LoopTemplate
         init = [Expr(:call, :(=), v, Symbol(Recurrences.initvariable(v, 0))) for v in keys(vars)]
         @debug "Code" body init
 
-        new(name, args, vars, body, init, avals, ivals)
+        sys = _lrs(body)
+        cforms = Recurrences.solve(sys)
+        @debug "Closed forms" cforms
+
+        new(name, args, vars, body, init, avals, ivals, cforms)
     end
 
-    LoopTemplate(t::LoopTemplate) = new(t.name, copy(t.args), copy(t.vars), copy(t.body), copy(t.init), copy(t.avals), copy(t.ivals))
+    LoopTemplate(t::LoopTemplate) = new(t.name, copy(t.args), copy(t.vars), copy(t.body), copy(t.init), copy(t.avals), copy(t.ivals), copy(t.cforms))
 end
 
 name(t::LoopTemplate) = t.name
@@ -86,6 +93,7 @@ bodyexpr(t::LoopTemplate) = t.body
 initexpr(t::LoopTemplate) = t.init
 argvalues(t::LoopTemplate) = t.avals
 initvalues(t::LoopTemplate) = t.ivals
+closedforms(t::LoopTemplate) = t.cforms
 
 Base.copy(t::LoopTemplate) = LoopTemplate(t)
 
@@ -119,10 +127,10 @@ setvalues(t::LoopTemplate, d::Pair...) = setvalues(t, Dict(d))
 
 replace_post(ex, s, s′) = MacroTools.postwalk(x -> x == s ? s′ : x, ex)
 
-function lrs(t::LoopTemplate)
+function _lrs(body::Vector{Expr})
     lhss = Symbol[]
     rhss = Expr[]
-    for assign in bodyexpr(t)
+    for assign in body
         @capture(assign, lhs_ = rhs_)
         push!(lhss, lhs)
         push!(rhss, unblock(rhs))
@@ -198,15 +206,11 @@ function invariants!(s::Synthesizer, invs::Expr...)
 end
 
 function _constraints!(s::Synthesizer)
-    sys = lrs(template(s))
-    cforms = Recurrences.solve(sys)
-
-    # ivars = Dict(Recurrences.initvariable(f, 0) => f for f in sys.funcs)
-
-    @debug "Closed forms" cforms
+    cforms = closedforms(template(s))
     d = [cf.func => expression(cf) for cf in cforms]
-    @debug "Replacement dicitonary" d
 
+    # We can assume cforms is not empty, otherwise the loop template would not exist
+    lc = cforms[1].arg
     for invariant in invariants(s)
         @capture(invariant, lhs_ == rhs_)
         expr = Basic(lhs) - Basic(rhs)
@@ -214,7 +218,7 @@ function _constraints!(s::Synthesizer)
         # expr = subs(expr, ivars...)
         expr = expand(expr * denominator(expr))
 
-        cfs = Recurrences.coeffs(expr, sys.arg)
+        cfs = Recurrences.coeffs(expr, lc)
         @debug "Coefficients from invariant" cfs
 
         cstr = [Expr(:call, :(==), 0, convert(Expr, c)) for c in cfs]
