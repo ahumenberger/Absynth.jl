@@ -93,7 +93,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-if false
+try
 
 using Mathematica
 
@@ -114,13 +114,19 @@ function constraints!(s::MathematicaSolver, cstr::Expr...)
 end
 
 function solve(s::MathematicaSolver)
-    cstr = Expr(:braces, s.cstr...)
-    vars = Expr(:braces, keys(s.vars)...)
-    @info "" cstr vars
-    result = NSolve(cstr, vars, :Rationals)
-    @info "Mathematica result" result
+    @debug "Constraints and variables" s.cstr s.vars
+    result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
+    @debug "Result of Mathematica" result
+    if isempty(result)
+        return unsat, nothing
+    end
+    return sat, Dict(result[1]...)
 end
 
-end # if
+catch
+
+@info "MathematicaSolver not available. Everything else works."
+
+end # try
 
 end # module

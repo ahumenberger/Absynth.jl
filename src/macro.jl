@@ -24,7 +24,7 @@ macro generictemplate(name, vars...)
         args = Dict{Symbol,Type}()
         function inc()
             global count += 1
-            s = Symbol("ω$count")
+            s = Symbol("a$count$count")
             push!(args, s=>Rational{Int})
             s
         end
