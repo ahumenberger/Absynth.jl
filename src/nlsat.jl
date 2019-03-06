@@ -94,8 +94,13 @@ end
 # ------------------------------------------------------------------------------
 
 try
+    using Mathematica
+catch
+    @info "MathematicaSolver not available. Everything else works."    
+end
 
-using Mathematica
+
+if @isdefined(Mathematica)
 
 export MathematicaSolver
 
@@ -123,10 +128,6 @@ function solve(s::MathematicaSolver)
     return sat, Dict(result[1]...)
 end
 
-catch
-
-@info "MathematicaSolver not available. Everything else works."
-
-end # try
+end #if
 
 end # module
