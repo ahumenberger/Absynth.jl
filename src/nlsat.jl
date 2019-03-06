@@ -20,7 +20,7 @@ abstract type NLSolver end
 
 function variables!(s::NLSolver, d::Pair{Symbol,Type}...) end
 function constraints!(s::NLSolver, c::Expr...) end
-function solve(s::NLSolver) end
+function solve(s::NLSolver; timeout::Int = -1) end
 
 # ------------------------------------------------------------------------------
 
@@ -77,8 +77,11 @@ function _check(s::Z3Solver)
     return unknown
 end
 
-function solve(s::Z3Solver)
+function solve(s::Z3Solver; timeout::Int = -1)
     @warn "$(typeof(s)) only supports Integer solutions for now."
+    if timeout > 0
+        z3.set(timeout=timeout)
+    end
     res = _check(s)
     if res == sat
         m = s.ptr.model()
@@ -118,7 +121,7 @@ function constraints!(s::MathematicaSolver, cstr::Expr...)
     push!(s.cstr, cstr...)
 end
 
-function solve(s::MathematicaSolver)
+function solve(s::MathematicaSolver; timeout::Int = -1)
     @debug "Constraints and variables" s.cstr s.vars
     result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
     @debug "Result of Mathematica" result
