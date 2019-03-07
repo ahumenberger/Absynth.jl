@@ -69,13 +69,13 @@ end
 function _check(s::Z3Solver)
     result = s.ptr.check()
     if result == z3.sat
-        return sat
+        return NLSat.sat
     elseif result == z3.unsat
-        return unsat
+        return NLSat.unsat
     end
     @info "Unknown result: $result"
-    # Z3 return 'unknown' on timeout
-    return timeout
+    # Z3 returns 'unknown' on timeout
+    return NLSat.timeout
 end
 
 function solve(s::Z3Solver; timeout::Int=-1)
@@ -132,11 +132,11 @@ function solve(s::MathematicaSolver; timeout::Int=-1)
     end
     @debug "Result of Mathematica" result
     if result == :Timeout
-        return timeout, nothing
-    else if isempty(result)
-        return unsat, nothing
+        return NLSat.timeout, nothing
+    elseif isempty(result)
+        return NLSat.unsat, nothing
     end
-    return sat, Dict(result[1]...)
+    return NLSat.sat, Dict(result[1]...)
 end
 
 end #if

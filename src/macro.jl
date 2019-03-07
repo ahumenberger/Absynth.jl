@@ -18,6 +18,26 @@ macro template(input)
     return esc(:($name = LoopTemplate($(tname)..., $(args), convert(Vector{Expr}, $(assignments)))))
 end
 
+"""
+    @generictemplate tmpl vars...
+
+Create a generic loop template with name `tmpl` and the variables in `vars`.
+
+# Examples
+```julia-repl
+julia> @generictemplate tmpl1 x y z
+LoopTemplate with loop variables (y,z,x) and unknowns (a33,a11,a55,a22,a44,a66):
+
+  y = y00
+  z = z00
+  x = x00
+  while ...
+    x = x + a11 * y + a22 * z + a33
+    y = y + a44 * z + a55
+    z = z + a66
+  end
+```
+"""
 macro generictemplate(name, vars...)
     esc(quote
         count = 0
@@ -45,16 +65,60 @@ function splitformula(expr)
     return [expr]
 end
 
-macro synth(tmpl, invs, cstr)
-    invariants = Vector{Expr}(splitformula(invs))
-    constraints = Vector{Expr}(splitformula(cstr))
-    @debug "Parsed macro input" tmpl invariants constraints
+"""
+    @synth tmpl inv [cstr] <keyword arguments>
+
+Synthesize a loop for a given loop template `tmpl` satisfying the loop 
+invariant `inv` and constraints `cstr`.
+
+# Arguments
+- `tmpl`: the name of the loop template.
+- `inv`: a list of equality invariant separated by &&.
+- `cstr`: a list of equality and inequality constraints separated by &&.
+- `solver::Absynth.NLSolver=T`: the solver which should be used to solve the constraints.
+- `timeout::Int=seconds`: the time limit for the solver.
+
+# Examples
+```julia-repl
+julia> @generictemplate tmpl1 x y z
+LoopTemplate with loop variables (y,z,x) and unknowns (a33,a11,a55,a22,a44,a66):
+
+  y = y00
+  z = z00
+  x = x00
+  while ...
+    x = x + a11 * y + a22 * z + a33
+    y = y + a44 * z + a55
+    z = z + a66
+  end
+
+julia> @synth tmpl1 (x == y && y == z) (a66 > 1 && x00 > 1) solver=Absynth.Z3Solver timeout=10
+LoopTemplate with loop variables (y,z,x) and unknowns (a33,a11,a55,a22,a44,a66):
+
+  y = y00:2
+  z = z00:2
+  x = x00:2
+  while ...
+    x = x + a11:0 * y + a22:0 * z + a33:6
+    y = y + a44:0 * z + a55:6
+    z = z + a66:6
+  end
+```
+"""
+macro synth(args...)
+    nargs = length(args)
+    @assert nargs >= 2 "Missing arguments"
+    tmpl = args[1]
+    invariants = Vector{Expr}(splitformula(args[2]))
+    constraints = nargs >= 3 ? Vector{Expr}(splitformula(args[3])) : []
+    kwargs = collect(args[4:end])
+    @debug "Parsed macro input" tmpl invariants constraints kwargs
     
     esc(quote
         s = Synthesizer($tmpl)
         invariants!(s, $invariants...)
         constraints!(s, $constraints...)
-        solve(s)
+        solve(s; $(kwargs...))
     end)
 end
 

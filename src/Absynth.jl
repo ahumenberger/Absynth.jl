@@ -228,7 +228,7 @@ function _constraints!(s::Synthesizer)
     s.updated = false
 end
 
-function solve(s::Synthesizer, ::Type{T} = Z3Solver; timeout::Int=120) where {T<:NLSolver}
+function solve(s::Synthesizer; solver::Type{T}=Z3Solver, timeout::Int=120) where {T<:NLSolver}
     @assert !isempty(invariants(s)) "No invariants specified."
     if s.updated
         _constraints!(s)
@@ -257,6 +257,8 @@ function solve(s::Synthesizer, ::Type{T} = Z3Solver; timeout::Int=120) where {T<
             end
         end
         return setvalues(tmpl, Dict{Symbol,CoeffType}(model))
+    elseif status == NLSat.timeout
+        @error "Timeout"
     else
         @error "No solution exists. Result of $T: $status"
     end
