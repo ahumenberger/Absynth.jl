@@ -228,7 +228,7 @@ function _constraints!(s::Synthesizer)
     s.updated = false
 end
 
-function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
+function solve(s::Synthesizer, ::Type{T} = Z3Solver; timeout::Int=120) where {T<:NLSolver}
     @assert !isempty(invariants(s)) "No invariants specified."
     if s.updated
         _constraints!(s)
@@ -246,7 +246,7 @@ function solve(s::Synthesizer, ::Type{T} = Z3Solver) where {T<:NLSolver}
         NLSat.constraints!(solver, invconstraints(s)...)
     end
 
-    status, model = NLSat.solve(solver)
+    status, model = NLSat.solve(solver, timeout=timeout)
     @debug "Result of $T" status model
     if status == NLSat.sat
         undef = setdiff(args(tmpl), keys(model))

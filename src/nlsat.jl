@@ -14,7 +14,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-@enum NLStatus sat unsat unknown
+@enum NLStatus sat unsat unknown timeout
 
 abstract type NLSolver end
 
@@ -74,13 +74,15 @@ function _check(s::Z3Solver)
         return unsat
     end
     @info "Unknown result: $result"
-    return unknown
+    # Z3 return 'unknown' on timeout
+    return timeout
 end
 
-function solve(s::Z3Solver; timeout::Int = -1)
+function solve(s::Z3Solver; timeout::Int=-1)
     @warn "$(typeof(s)) only supports Integer solutions for now."
     if timeout > 0
-        z3.set(timeout=timeout)
+        # Z3 expects milliseconds
+        s.ptr.set(timeout=timeout*1000)
     end
     res = _check(s)
     if res == sat
@@ -121,11 +123,17 @@ function constraints!(s::MathematicaSolver, cstr::Expr...)
     push!(s.cstr, cstr...)
 end
 
-function solve(s::MathematicaSolver; timeout::Int = -1)
+function solve(s::MathematicaSolver; timeout::Int=-1)
     @debug "Constraints and variables" s.cstr s.vars
-    result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
+    if timeout > 0
+        result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :Rationals), $(timeout), Timeout)
+    else
+        result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
+    end
     @debug "Result of Mathematica" result
-    if isempty(result)
+    if result == :Timeout
+        return timeout, nothing
+    else if isempty(result)
         return unsat, nothing
     end
     return sat, Dict(result[1]...)
