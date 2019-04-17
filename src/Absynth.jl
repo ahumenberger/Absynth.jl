@@ -68,10 +68,10 @@ struct LoopTemplate
         @debug "Type maps" args vars
 
         avals = Dict(x=>x for x in keys(args))
-        ivals = Dict(Symbol(Recurrences.initvariable(x, 0))=>Symbol(Recurrences.initvariable(x, 0)) for x in keys(vars))
+        ivals = Dict(Symbol(Recurrences.initvar(x))=>Symbol(Recurrences.initvar(x)) for x in keys(vars))
         @debug "Value maps" avals ivals
 
-        init = [Expr(:call, :(=), v, Symbol(Recurrences.initvariable(v, 0))) for v in keys(vars)]
+        init = [Expr(:call, :(=), v, Symbol(Recurrences.initvar(v))) for v in keys(vars)]
         @debug "Code" body init
 
         sys = _lrs(body)
@@ -133,7 +133,7 @@ function _lrs(body::Vector{Expr})
     for assign in body
         @capture(assign, lhs_ = rhs_)
         push!(lhss, lhs)
-        push!(rhss, unblock(rhs))
+        push!(rhss, rhs isa Symbol ? Expr(:call, :*, rhs, 1) : unblock(rhs))
     end
 
     lc = :nn
@@ -220,7 +220,8 @@ function _constraints!(s::Synthesizer)
 
         cfs = Recurrences.coeffs(expr, lc)
         @debug "Coefficients from invariant" cfs
-
+        filter!(x -> !iszero(x), cfs)
+        @debug "Coefficients from invariant" cfs
         cstr = [Expr(:call, :(==), 0, convert(Expr, c)) for c in cfs]
 
         push!(s.invcstr, cstr...)
@@ -237,7 +238,7 @@ function solve(s::Synthesizer; solver::Type{T}=Z3Solver, timeout::Int=120) where
     solver = T()
 
     tmpl = template(s)
-    ivars = Dict{Symbol,Type}(Symbol(Recurrences.initvariable(k, 0))=>v for (k,v) in varmap(tmpl))
+    ivars = Dict{Symbol,Type}(Symbol(Recurrences.initvar(k))=>v for (k,v) in varmap(tmpl))
     NLSat.variables!(solver, argmap(tmpl)..., ivars...)
     if !isempty(constraints(s))
         NLSat.constraints!(solver, constraints(s)...)
