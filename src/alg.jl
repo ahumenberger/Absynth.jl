@@ -1,6 +1,7 @@
 
 using SymPy
 using Combinatorics
+using LinearAlgebra
 
 symconst(i::Int, n::Int) = reshape([Basic("c$i$j") for j in 1:n], n, 1)
 symroot(n::Int) = [Basic("w$i") for i in 1:n]
@@ -21,6 +22,8 @@ function degree(ex::Basic, x::Basic)
     convert(Int, SymPy.degree(Sym(ex), gen=Sym(x)))
 end
 
+simplify(x::Basic) = Basic(SymPy.simplify(Sym(x)))
+
 isconstant(x::Basic) = isempty(SymEngine.free_symbols(x))
 
 # ------------------------------------------------------------------------------
@@ -38,14 +41,38 @@ end
 
 function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     rs = symroot(length(ms))
-    cfs = cforms(size(B, 1), rs, ms)
+    cfs, cs = cforms(size(B, 1), rs, ms)
     p = SymEngine.lambdify(inv)(cfs...)
-    variety(p, rs)
+    vcforms = variety_cforms(B, cs, rs, ms)
+    valgrel = variety_algrel(p, rs)
+    @info "" vcforms valgrel
 end
 
 function cforms(n::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic=Basic("n"))
     ls = [r*lc^i for (r,m) in zip(rs,ms) for i in 0:m-1]
-    sum(l*symconst(i, n) for (i, l) in enumerate(ls))
+    cs = [symconst(i, n) for i in 1:length(ls)]
+    sum(l*c for (l, c) in zip(ls, cs)), cs
+end
+
+function variety_cforms(B, cs, rs, ms)
+    cstrs = Basic[]
+    i = 1
+    for (r,m) in zip(rs, ms)
+        for j in 1:m
+            cstr = binomial(m, j) * cs[i]*r - B*cs[i]
+            @info "constraint" cstr
+            push!(cstrs, vec(cstr)...)
+            i += 1
+        end
+    end
+    λ = Basic("lbd")
+    cpoly = det(B-UniformScaling(λ)) |> simplify
+    cps = [SymEngine.subs(cpoly, λ=>r) for r in rs]
+    distinct = [r1-r2 for (r1,r2) in combinations(rs, 2)]
+    @info "" cps distinct
+    vroots = Variety(cps) - Variety(distinct)
+    vcstrs = Variety(cstrs)
+    intersect(vcstrs, vroots)
 end
 
 # ------------------------------------------------------------------------------
@@ -117,7 +144,7 @@ Base.IteratorSize(::Type{TermVarieties}) = Base.SizeUnknown()
 
 # ------------------------------------------------------------------------------
 
-function variety(p::Basic, rs::Vector{Basic}, lc::Basic=Basic("n"))
+function variety_algrel(p::Basic, rs::Vector{Basic}, lc::Basic=Basic("n"))
     qs = destructpoly(p, lc)
     vs = Variety[]
     for (i, q) in enumerate(qs)
