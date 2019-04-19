@@ -2,14 +2,15 @@ module Absynth
 
 include("nlsat.jl")
 include("variety.jl")
+include("alg.jl")
 
 using MacroTools
 using Absynth.NLSat
 using SymEngine
-using Recurrences
+# using Recurrences
 
-export LoopTemplate, setvalues, setvalues!
-export Synthesizer, solve, constraints!, invariants!
+# export LoopTemplate, setvalues, setvalues!
+# export Synthesizer, solve, constraints!, invariants!
 
 # ------------------------------------------------------------------------------
 
@@ -19,6 +20,8 @@ function free_symbols(ex::Expr)
     atoms(x -> (push!(ls, x); x), ex)
     Base.unique(ls)
 end
+
+if false
 
 function clear_denom(f::Basic)
     ls = Recurrences.summands(f) |> Iterators.flatten
@@ -281,5 +284,7 @@ end
 
 include("show.jl")
 include("macro.jl")
+
+end
 
 end # module

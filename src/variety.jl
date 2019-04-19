@@ -6,13 +6,26 @@ export Variety
 struct Variety
     I::sideal
 
+    Variety(I::sideal) = new(I)
+
     function Variety(ps::Vector{Expr})
+        if isempty(ps)
+            R, _ = PolynomialRing(QQ, ["n"])
+            return new(Ideal(R, ))
+        end
+        @info ps
         fs = union((free_symbols.(ps))...)
         R, _ = PolynomialRing(QQ, string.(fs))
-        gens = R.(ps)
+        gens = spoly{Singular.n_Q}[R(p) for p in ps]
+        @info gens
         I = Ideal(R, gens)
         new(I)
     end
+end
+
+function Variety(ps::Vector{Basic})
+    @info "Basic" ps
+    Variety(Expr[convert(Expr, p) for p in ps])
 end
 
 function common_base_ring(is::sideal...)
@@ -34,7 +47,7 @@ function Base.union(v::Variety, w::Variety)
     if base_ring(I) != base_ring(J)
         I, J = common_base_ring(I, J)
     end
-    intersection(I, J)
+    Variety(intersection(I, J))
 end
 
 function Base.intersect(v::Variety, w::Variety)
@@ -42,7 +55,7 @@ function Base.intersect(v::Variety, w::Variety)
     if base_ring(I) != base_ring(J)
         I, J = common_base_ring(I, J)
     end
-    I + J
+    Variety(I + J)
 end
 
 function Base.:(-)(v::Variety, w::Variety)
@@ -50,7 +63,7 @@ function Base.:(-)(v::Variety, w::Variety)
     if base_ring(I) != base_ring(J)
         I, J = common_base_ring(I, J)
     end
-    quotient(I, J)
+    Variety(quotient(I, J))
 end
 
 function (R::PolyRing)(p::Expr)

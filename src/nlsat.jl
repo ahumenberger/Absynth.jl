@@ -73,13 +73,13 @@ function _check(s::Z3Solver)
     elseif result == z3.unsat
         return NLSat.unsat
     end
-    @info "Unknown result: $result"
+    @debug "Unknown result: $result"
     # Z3 returns 'unknown' on timeout
     return NLSat.timeout
 end
 
 function solve(s::Z3Solver; timeout::Int=-1)
-    @warn "$(typeof(s)) only supports Integer solutions for now."
+    @debug "$(typeof(s)) only supports Integer solutions for now."
     if timeout > 0
         # Z3 expects milliseconds
         s.ptr.set(timeout=timeout*1000)
@@ -98,47 +98,47 @@ end
 
 # ------------------------------------------------------------------------------
 
-try
-    using Mathematica
-catch
-    @info "MathematicaSolver not available. Everything else works."    
-end
+# try
+#     using Mathematica
+# catch
+#     @info "MathematicaSolver not available. Everything else works."    
+# end
 
 
-if @isdefined(Mathematica)
+# if @isdefined(Mathematica)
 
-export MathematicaSolver
+# export MathematicaSolver
 
-struct MathematicaSolver <: NLSolver
-    vars::Dict{Symbol,Type}
-    cstr::Vector{Expr}
-    MathematicaSolver() = new(Dict(), [])
-end
+# struct MathematicaSolver <: NLSolver
+#     vars::Dict{Symbol,Type}
+#     cstr::Vector{Expr}
+#     MathematicaSolver() = new(Dict(), [])
+# end
 
-function variables!(s::MathematicaSolver, d::Pair{Symbol,Type}...)
-    push!(s.vars, d...)
-end
+# function variables!(s::MathematicaSolver, d::Pair{Symbol,Type}...)
+#     push!(s.vars, d...)
+# end
 
-function constraints!(s::MathematicaSolver, cstr::Expr...)
-    push!(s.cstr, cstr...)
-end
+# function constraints!(s::MathematicaSolver, cstr::Expr...)
+#     push!(s.cstr, cstr...)
+# end
 
-function solve(s::MathematicaSolver; timeout::Int=-1)
-    @debug "Constraints and variables" s.cstr s.vars
-    if timeout > 0
-        result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :Rationals), $(timeout), Timeout)
-    else
-        result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
-    end
-    @debug "Result of Mathematica" result
-    if result == :Timeout
-        return NLSat.timeout, nothing
-    elseif isempty(result)
-        return NLSat.unsat, nothing
-    end
-    return NLSat.sat, Dict(result[1]...)
-end
+# function solve(s::MathematicaSolver; timeout::Int=-1)
+#     @debug "Constraints and variables" s.cstr s.vars
+#     if timeout > 0
+#         result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :Integers), $(timeout), Timeout)
+#     else
+#         result = FindInstance(s.cstr, collect(keys(s.vars)), :Integers)
+#     end
+#     @debug "Result of Mathematica" result
+#     if result == :Timeout
+#         return NLSat.timeout, nothing
+#     elseif isempty(result)
+#         return NLSat.unsat, nothing
+#     end
+#     return NLSat.sat, Dict(result[1]...)
+# end
 
-end #if
+# end #if
 
 end # module
