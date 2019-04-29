@@ -54,6 +54,12 @@ function cforms(n::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic=Basic("n")
     sum(l*c for (l, c) in zip(ls, cs)), cs
 end
 
+symconst(i::Int, j::Int, n::Int) = reshape([Basic("c$i$j$k") for k in 1:n], n, 1)
+
+function cfconst(ms, n)
+    [symconst(i, j, n) for j in 1:length(ms), m in ms for i in 1:m]
+end
+
 function variety_cforms(B, cs, rs, ms)
     cstrs = Basic[]
     i = 1
@@ -144,23 +150,16 @@ Base.IteratorSize(::Type{TermVarieties}) = Base.SizeUnknown()
 
 # ------------------------------------------------------------------------------
 
-function variety_algrel(p::Basic, rs::Vector{Basic}, lc::Basic=Basic("n"))
+function cstr_algrel(p::Basic, rs::Vector{Basic}, lc::Basic=Basic("n"))
     qs = destructpoly(p, lc)
-    vs = Variety[]
+    cs = Basic[]
     for (i, q) in enumerate(qs)
-        ms, cs = destructterm(q, rs)
-        tv = TermVarieties(ms, cs)
-        v = reduce(union, tv)
-        if i == 1
-            q0 = SymEngine.subs(q, collect(zip(rs, ones(Basic, length(rs))))...)
-            @info "" q q0
-            v = intersect(v, Variety([q0]))
-        else
-            v = intersect(v, Variety([q]))
-        end
-        push!(vs, v)
+        ms, us = destructterm(q, rs)
+        l = length(ms)
+        c = [sum(m^j*u for (m,u) in zip(ms,us)) for j in 0:l-1]
+        append!(cs, c)
     end
-    reduce(intersect, vs)
+    cs
 end
 
 # ------------------------------------------------------------------------------
