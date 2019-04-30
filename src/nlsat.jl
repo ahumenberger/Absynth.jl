@@ -115,7 +115,6 @@ function solve(s::Z3Solver; timeout::Int=-1)
 end
 
 typename(x::PyObject) = x.__class__.__name__
-get(m::Py)
 
 # ------------------------------------------------------------------------------
 
