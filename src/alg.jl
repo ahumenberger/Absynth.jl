@@ -41,121 +41,49 @@ end
 
 function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     rs = symroot(length(ms))
-    cfs, cs = cforms(size(B, 1), rs, ms)
+    lc = Basic("n")
+    cfs, cs = cforms(size(B, 1), rs, ms, lc)
     p = SymEngine.lambdify(inv)(cfs...)
-    vcforms = variety_cforms(B, cs, rs, ms)
-    valgrel = variety_algrel(p, rs)
+    cscfs = cstr_cforms(B, rs, ms)
+    csroots, distinct = cstr_roots(B, rs, ms)
+    csrel = cstr_algrel(p, rs)
     @info "" vcforms valgrel
 end
 
-function cforms(n::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic=Basic("n"))
-    ls = [r*lc^i for (r,m) in zip(rs,ms) for i in 0:m-1]
-    cs = [symconst(i, n) for i in 1:length(ls)]
-    sum(l*c for (l, c) in zip(ls, cs)), cs
+function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic)
+    t = length(rs)
+    sum(symconst(i, j, varcnt) * rs[i]^lc * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
-symconst(i::Int, j::Int, n::Int) = reshape([Basic("c$i$j$k") for k in 1:n], n, 1)
+symconst(i::Int, j::Int, rows::Int) = reshape([Basic("c$i$j$k") for k in 1:rows], rows, 1)
 
-function cfconst(ms, n)
-    [symconst(i, j, n) for j in 1:length(ms), m in ms for i in 1:m]
+# ------------------------------------------------------------------------------
+
+function cstr_cforms(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int})
+    rows = size(B, 1)
+    t = length(rs)
+    [sum(binomial(k-1, j-1) * symconst(i, k, rows) * rs[i] for k in j:ms[i]) - B * symconst(i, j, rows) for i in 1:t for j in 1:ms[i]]
 end
 
-function variety_cforms(B, cs, rs, ms)
-    cstrs = Basic[]
-    i = 1
-    for (r,m) in zip(rs, ms)
-        for j in 1:m
-            cstr = binomial(m, j) * cs[i]*r - B*cs[i]
-            @info "constraint" cstr
-            push!(cstrs, vec(cstr)...)
-            i += 1
-        end
-    end
+function cstr_roots(B, rs, ms)
     λ = Basic("lbd")
     cpoly = det(B-UniformScaling(λ)) |> simplify
-    cps = [SymEngine.subs(cpoly, λ=>r) for r in rs]
-    distinct = [r1-r2 for (r1,r2) in combinations(rs, 2)]
-    @info "" cps distinct
-    vroots = Variety(cps) - Variety(distinct)
-    vcstrs = Variety(cstrs)
-    intersect(vcstrs, vroots)
+    cstr = [SymEngine.subs(cpoly, λ=>r) for r in rs]
+    # distinct = [r1-r2 for (r1,r2) in combinations(rs, 2)]
+    cstr, combinations(rs, 2)
 end
 
 # ------------------------------------------------------------------------------
 
-export TermPartition
-
-struct TermPartition{T<:AbstractVector}
-    a1::T
-    a2::T
-end
-
-function Base.iterate(t::TermPartition)
-    iter = partitions(1:length(t.a1), 2)
-    next = iterate(iter)
-    iterate(t, (iter, next, false))
-end
-
-function Base.iterate(t::TermPartition, s)
-    (piter, next, reverse) = s
-    if next !== nothing
-        (part, pstate) = next
-        if reverse
-            (i1, i2) = part
-        else
-            (i2, i1) = part
-        end
-        s1 = [t.a1[i] for i in i1]
-        s2 = [t.a2[i]-t.a2[j] for (i,j) in combinations(i2, 2)]
-        @info "" s1 s2 i1 i2
-        nextstate = !reverse ? (piter, next, true) : (piter, iterate(piter, pstate), false)
-        return [s1; s2], nextstate
-    elseif reverse == false
-        return t.a1, (piter, next, true)
-    elseif reverse == true
-        return [x-y for (x,y) in combinations(t.a2, 2)], (piter, next, nothing)
-    end
-    return nothing
-end
-
-Base.IteratorSize(::Type{TermPartition{T}}) where {T<:AbstractVector} = Base.SizeUnknown()
-
-# ------------------------------------------------------------------------------
-
-struct TermVarieties
-    ms::Vector{Basic}
-    cs::Vector{Basic}
-end
-
-function Base.iterate(t::TermVarieties)
-    iter = TermPartition(t.cs, t.ms)
-    next = iterate(iter)
-    iterate(t, (iter, next))
-end
-
-function Base.iterate(t::TermVarieties, s)
-    (iter, next) = s
-    if next !== nothing
-        (ls, state) = next
-        filter!(!iszero, ls)
-        if any(isconstant, ls)
-            return iterate(t, (iter, iterate(iter, state)))
-        end
-        return Variety(ls), (iter, iterate(iter, state))
-    end
-    return nothing
-end
-
-Base.IteratorSize(::Type{TermVarieties}) = Base.SizeUnknown()
-
-# ------------------------------------------------------------------------------
-
-function cstr_algrel(p::Basic, rs::Vector{Basic}, lc::Basic=Basic("n"))
+function cstr_algrel(p::Basic, rs::Vector{Basic}, lc::Basic)
     qs = destructpoly(p, lc)
     cs = Basic[]
     for (i, q) in enumerate(qs)
         ms, us = destructterm(q, rs)
         l = length(ms)
+        if all(isone, ms)
+            l = 1
+        end
         c = [sum(m^j*u for (m,u) in zip(ms,us)) for j in 0:l-1]
         append!(cs, c)
     end
@@ -164,7 +92,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-function destructpoly(p::Basic, lc::Basic=Basic("n"))
+function destructpoly(p::Basic, lc::Basic)
     coeffs(p, lc)
 end
 
