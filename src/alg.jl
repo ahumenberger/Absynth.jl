@@ -34,11 +34,14 @@ function constraints(B::Matrix{Basic}, inv::Basic)
     for ms in partitions(size(B, 1))
         @info "Multiplicities" ms
         constraints(B, inv, ms)
-        break
+        # break
     end
 end
 
-abstract type AlgebraicNumber end
+to_expr(xs::Vector{Basic}) = map(x->convert(Expr, x), xs)
+
+eq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(==), convert(Expr, x), convert(Expr, y))
+ineq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(!=), convert(Expr, x), convert(Expr, y))
 
 function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     t = length(ms)
@@ -54,14 +57,23 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
     bs = Iterators.flatten(B) |> collect
     vars = [cs; bs; rs]
-    varmap = Dict(v=>AlgebraicNumber for v in vars)
-    @info "Variables" vars |> collect
+    varmap = Dict(Symbol(string(v))=>AlgebraicNumber for v in vars)
+    @info "Variables" varmap
 
-    solver = T()
-    NLSat.variables!(solver, varmap...)
-    NLSat.constraints!(solver, cscforms...)
-    NLSat.constraints!(solver, csroots...)
-    NLSat.constraints!(solver, csrel...)
+    solver = Z3Solver()
+    NLSat.variables!(solver, convert(Dict{Symbol,Type}, varmap))
+    NLSat.constraints!(solver, map(eq, Iterators.flatten(cscforms)))
+    NLSat.constraints!(solver, map(eq, csroots))
+    NLSat.constraints!(solver, [ineq(x,y) for (x,y) in distinct])
+    NLSat.constraints!(solver, map(eq, csrel))
+
+    status, model = NLSat.solve(solver)
+    if status == NLSat.sat
+        sol = [model[Symbol(string(b))] for b in B]
+        @info "" sol
+    else
+        @info "UNSAT"
+    end
 end
 
 function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic)
