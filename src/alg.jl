@@ -3,9 +3,6 @@ using SymPy
 using Combinatorics
 using LinearAlgebra
 
-symconst(i::Int, n::Int) = reshape([Basic("c$i$j") for j in 1:n], n, 1)
-symroot(n::Int) = [Basic("w$i") for i in 1:n]
-
 # ------------------------------------------------------------------------------
 
 import SymEngine.Basic
@@ -28,34 +25,37 @@ isconstant(x::Basic) = isempty(SymEngine.free_symbols(x))
 
 # ------------------------------------------------------------------------------
 
-function constraints(inv::Basic)
-    d = 2
-    B = [Basic("b$i$j") for i in 1:d, j in 1:d]
+function constraints(inv::Basic, dims::Int)
+    B = [Basic("b$i$j") for i in 1:dims, j in 1:dims]
     constraints(B, inv)
 end
 
 function constraints(B::Matrix{Basic}, inv::Basic)
-    ms = ones(Int, size(B, 1))
-    constraints(B, inv, ms)
+    for ms in partitions(size(B, 1))
+        @info "Multiplicities" ms
+        constraints(B, inv, ms)
+        break
+    end
 end
 
 function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     rs = symroot(length(ms))
     lc = Basic("n")
-    cfs, cs = cforms(size(B, 1), rs, ms, lc)
+    cfs = cforms(size(B, 1), rs, ms, lc)
     p = SymEngine.lambdify(inv)(cfs...)
     cscfs = cstr_cforms(B, rs, ms)
     csroots, distinct = cstr_roots(B, rs, ms)
-    csrel = cstr_algrel(p, rs)
-    @info "" vcforms valgrel
+    csrel = cstr_algrel(p, rs, lc)
+    @info "" cscfs csroots distinct csrel
 end
 
 function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic)
     t = length(rs)
-    sum(symconst(i, j, varcnt) * rs[i]^lc * lc^(j-1) for i in 1:t for j in 1:ms[i])
+    sum(symconst(i, j, varcnt) * rs[i] * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
 symconst(i::Int, j::Int, rows::Int) = reshape([Basic("c$i$j$k") for k in 1:rows], rows, 1)
+symroot(n::Int) = [Basic("w$i") for i in 1:n]
 
 # ------------------------------------------------------------------------------
 
