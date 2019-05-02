@@ -68,6 +68,7 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     NLSat.constraints!(solver, map(eq, csrel))
 
     status, model = NLSat.solve(solver)
+    @info "NL result" status model
     if status == NLSat.sat
         sol = [model[Symbol(string(b))] for b in B]
         @info "" sol
