@@ -33,8 +33,22 @@ end
 function constraints(B::Matrix{Basic}, inv::Basic)
     for ms in partitions(size(B, 1))
         @info "Multiplicities" ms
-        constraints(B, inv, ms)
-        # break
+        varmap, cstr = constraints(B, inv, ms)
+
+        solver = Z3Solver()
+        NLSat.variables!(solver, varmap)
+        NLSat.constraints!(solver, cstr)
+        status, model = NLSat.solve(solver)
+        @info "NL result" status model
+        if status == NLSat.sat
+            sol = [model[Symbol(string(b))] for b in B]
+            ivec = [model[Symbol(string(b))] for b in initvec(size(B, 1))]
+            @info "" sol ivec
+            return sol, ivec
+            break
+        else
+            @info "UNSAT"
+        end
     end
 end
 
@@ -47,7 +61,7 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     t = length(ms)
     rs = symroot(t)
     lc = Basic("n")
-    cfs = cforms(size(B, 1), rs, ms, lc)
+    cfs = cforms(size(B, 1), rs, ms, lc, one(Basic))
     p = SymEngine.lambdify(inv)(cfs...)
     cscforms = cstr_cforms(B, rs, ms)
     csroots, distinct = cstr_roots(B, rs, ms)
@@ -56,32 +70,34 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
 
     cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
     bs = Iterators.flatten(B) |> collect
-    vars = [cs; bs; rs]
-    varmap = Dict(Symbol(string(v))=>AlgebraicNumber for v in vars)
+    vars = [cs; rs]
+    varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
+    for b in bs
+        push!(varmap, Symbol(string(b))=>Rational)
+    end
+    for v in initvec(size(B, 1))
+        push!(varmap, Symbol(string(v))=>Rational)
+    end
     @info "Variables" varmap
 
-    solver = Z3Solver()
-    NLSat.variables!(solver, convert(Dict{Symbol,Type}, varmap))
-    NLSat.constraints!(solver, map(eq, Iterators.flatten(cscforms)))
-    NLSat.constraints!(solver, map(eq, csroots))
-    NLSat.constraints!(solver, [ineq(x,y) for (x,y) in distinct])
-    NLSat.constraints!(solver, map(eq, csrel))
+    cstr_cf = map(eq, Iterators.flatten(cscforms))
+    cstr_in = cstr_init(B, rs, ms)
+    @info "" cstr_in
+    cstr_rt = map(eq, csroots)
+    cstr_dist  = [ineq(x,y) for (x,y) in distinct]
+    cstr_poly  = map(eq, csrel)
 
-    status, model = NLSat.solve(solver)
-    @info "NL result" status model
-    if status == NLSat.sat
-        sol = [model[Symbol(string(b))] for b in B]
-        @info "" sol
-    else
-        @info "UNSAT"
-    end
+    cstr = [cstr_cf; cstr_rt; cstr_dist; cstr_poly; cstr_in]
+
+    varmap, cstr
 end
 
-function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic)
+function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic, exp::Basic=lc)
     t = length(rs)
-    sum(symconst(i, j, varcnt) * rs[i] * lc^(j-1) for i in 1:t for j in 1:ms[i])
+    sum(symconst(i, j, varcnt) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
+initvec(n::Int) = [Basic("v$i") for i in 1:n]
 symconst(i::Int, j::Int, rows::Int) = reshape([Basic("c$i$j$k") for k in 1:rows], rows, 1)
 symroot(n::Int) = [Basic("w$i") for i in 1:n]
 
@@ -129,6 +145,15 @@ function cstr_cforms(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int})
     rows = size(B, 1)
     t = length(rs)
     [sum(binomial(k-1, j-1) * symconst(i, k, rows) * rs[i] for k in j:ms[i]) - B * symconst(i, j, rows) for i in 1:t for j in 1:ms[i]]
+end
+
+function cstr_init(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int})
+    s = size(B, 1)
+    ivec = initvec(s)
+    cfs = cforms(s, rs, ms, zero(Basic))
+    c1 = [eq(v - c) for (v, c) in zip(ivec, cfs)]
+    c2 = map(ineq, B * B * ivec - B * ivec)
+    [c1; c2]
 end
 
 function cstr_roots(B, rs, ms)

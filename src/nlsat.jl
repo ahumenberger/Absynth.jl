@@ -35,7 +35,8 @@ typemap = Dict{Type,Function}(
     Int             => Z3Int,
     Bool            => Z3Bool,
     AlgebraicNumber => Z3Real,
-    Float32         => Z3Real
+    Float32         => Z3Real,
+    Rational        => Z3Real
 )
 
 struct Z3Solver <: NLSolver
@@ -103,8 +104,10 @@ function solve(s::Z3Solver; timeout::Int=-1)
                 num = pyobj.numerator_as_long()
                 den = pyobj.denominator_as_long()
                 val = Rational(num, den)
+            elseif vtype == "AlgebraicNumRef"
+                val = parse(Float32, pyobj.as_decimal(10)[1:end-1])
             else
-                @error "FIX NEEDED: unhandled type"
+                @error "FIX NEEDED: unhandled type" vtype
             end
             @info sym val
             push!(d, sym => val)
