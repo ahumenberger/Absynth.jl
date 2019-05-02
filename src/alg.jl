@@ -47,7 +47,6 @@ function constraints(B::Matrix{Basic}, inv::Basic)
             return sol, ivec
             break
         else
-            @info "UNSAT"
         end
     end
 end

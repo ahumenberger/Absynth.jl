@@ -49,6 +49,12 @@ end
 function variables!(s::Z3Solver, d::Dict{Symbol,Type})
     for (var, type) in d
         push!(s.vars, var => typemap[type](string(var)))
+        if type == Rational
+            p, q = gensym("p"), gensym("q")
+            push!(s.vars, p => Z3Int(string(p)))
+            push!(s.vars, q => Z3Int(string(q)))
+            constraints!(s, [:($q > 0), :($p/$q == $(var))])
+        end
     end
     s.vars
 end
@@ -78,9 +84,10 @@ function _check(s::Z3Solver)
         return NLSat.sat
     elseif result == z3.unsat
         return NLSat.unsat
+    elseif result == z3.unknown
+        return NLSat.unknown
     end
-    @debug "Unknown result: $result"
-    # Z3 returns 'unknown' on timeout
+    @info "Unknown result: $result"
     return NLSat.timeout
 end
 
@@ -90,6 +97,7 @@ function solve(s::Z3Solver; timeout::Int=-1)
         # Z3 expects milliseconds
         s.ptr.set(timeout=timeout*1000)
     end
+    @info "" s.cstr
     res = _check(s)
     if res == sat
         m = s.ptr.model()
