@@ -111,10 +111,22 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     lc = Basic("n")
     cfs = cforms(size(B, 1), rs, ms, lc, one(Basic))
     p = SymEngine.lambdify(inv)(cfs...)
+
+    # Equality constraints
     cscforms = cstr_cforms(B, rs, ms)
-    csroots, distinct = cstr_roots(B, rs, ms)
+    csinit = cstr_init(B, rs, ms)
+    csroots = cstr_roots(B, rs)
     csrel = cstr_algrel(p, rs, lc)
-    @info "" cscforms csroots collect(distinct) csrel
+    es = [collect(Iterators.flatten(cscforms)); csinit; csroots; csrel]
+    equal = map(eq, es)
+    @info "Equality constraints" cscforms csinit csroots csrel
+
+    # Inequality constraints
+    csnonconst = cstr_nonconstant(B)
+    csdistinct = cstr_distinct(rs)
+    ies = [csnonconst; csdistinct]
+    inequal = map(ineq, ies)
+    @info "Inequality constraints" csnonconst csdistinct
 
     cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
     bs = Iterators.flatten(B) |> collect
@@ -125,15 +137,7 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     end
     @info "Variables" varmap
 
-    cstr_cf = map(eq, Iterators.flatten(cscforms))
-    cstr_in = cstr_init(B, rs, ms)
-    cstr_rt = map(eq, csroots)
-    cstr_dist  = [ineq(x,y) for (x,y) in distinct]
-    cstr_poly  = map(eq, csrel)
-
-    cstr = [cstr_cf; cstr_rt; cstr_dist; cstr_poly; cstr_in]
-
-    varmap, cstr
+    varmap, [equal; inequal]
 end
 
 function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic, exp::Basic=lc)
@@ -147,69 +151,41 @@ symroot(n::Int) = [Basic("w$i") for i in 1:n]
 
 # ------------------------------------------------------------------------------
 
-# function solve(s::Synthesizer; solvertype::Type{T}=Z3Solver, timeout::Int=120) where {T<:NLSolver}
-#     @assert !isempty(invariants(s)) "No invariants specified."
-#     if s.updated
-#         _constraints!(s)
-#     end
-
-#     solver = T()
-
-#     tmpl = template(s)
-#     ivars = Dict{Symbol,Type}(Symbol(Recurrences.initvar(k))=>v for (k,v) in varmap(tmpl))
-#     NLSat.variables!(solver, argmap(tmpl)..., ivars...)
-#     if !isempty(constraints(s))
-#         NLSat.constraints!(solver, constraints(s)...)
-#     end
-#     if !isempty(invconstraints(s))
-#         NLSat.constraints!(solver, invconstraints(s)...)
-#     end
-
-#     status, model = NLSat.solve(solver, timeout=timeout)
-#     @debug "Result of $T" status model
-#     if status == NLSat.sat
-#         undef = setdiff(args(tmpl), keys(model))
-#         if !isempty(undef)
-#             # TODO: deal with unknowns which do not appear in model
-#             for v in undef
-#                 push!(model, v => 0)
-#             end
-#         end
-#         return setvalues(tmpl, Dict{Symbol,CoeffType}(model))
-#     elseif status == NLSat.timeout
-#         @error "Timeout"
-#     else
-#         @error "No solution exists. Result of $T: $status"
-#     end
-# end
-
-# ------------------------------------------------------------------------------
-
+"Generate constraints describing the relationship between entries of B and the closed forms."
 function cstr_cforms(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int})
     rows = size(B, 1)
     t = length(rs)
     [sum(binomial(k-1, j-1) * symconst(i, k, rows) * rs[i] for k in j:ms[i]) - B * symconst(i, j, rows) for i in 1:t for j in 1:ms[i]]
 end
 
+"Generate constraints defining the initial values."
 function cstr_init(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int})
     s = size(B, 1)
     ivec = initvec(s)
     cfs = cforms(s, rs, ms, zero(Basic))
-    c1 = [eq(v - c) for (v, c) in zip(ivec, cfs)]
-    c2 = map(ineq, B * B * ivec - B * ivec)
-    [c1; c2]
+    [v - c for (v, c) in zip(ivec, cfs)]
 end
 
-function cstr_roots(B, rs, ms)
+"Generate constraints ensuring that sequence is not constant, i.e. B*B*x0 != B*x0."
+function cstr_nonconstant(B::Matrix{Basic})
+    ivec = initvec(size(B, 1))
+    B * B * ivec - B * ivec
+end
+
+"Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
+function cstr_roots(B::Matrix{Basic}, rs::Vector{Basic})
     λ = Basic("lbd")
     cpoly = det(B-UniformScaling(λ)) |> simplify
     cstr = [SymEngine.subs(cpoly, λ=>r) for r in rs]
-    # distinct = [r1-r2 for (r1,r2) in combinations(rs, 2)]
-    cstr, combinations(rs, 2)
+    cstr
 end
+
+"Generate constraints ensuring that the elements of rs are distinct."
+cstr_distinct(rs::Vector{Basic}) = [r1-r2 for (r1,r2) in combinations(rs, 2)]
 
 # ------------------------------------------------------------------------------
 
+"Generate constraints ensuring that p is an algebraic relation."
 function cstr_algrel(p::Basic, rs::Vector{Basic}, lc::Basic)
     qs = destructpoly(p, lc)
     cs = Basic[]
