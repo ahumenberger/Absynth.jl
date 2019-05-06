@@ -136,37 +136,39 @@ typename(x::PyObject) = x.__class__.__name__
 
 # if @isdefined(Mathematica)
 
-# export MathematicaSolver
+export MathematicaSolver
 
-# struct MathematicaSolver <: NLSolver
-#     vars::Dict{Symbol,Type}
-#     cstr::Vector{Expr}
-#     MathematicaSolver() = new(Dict(), [])
-# end
+using Mathematica
 
-# function variables!(s::MathematicaSolver, d::Pair{Symbol,Type}...)
-#     push!(s.vars, d...)
-# end
+struct MathematicaSolver <: NLSolver
+    vars::Dict{Symbol,Type}
+    cstr::Vector{Expr}
+    MathematicaSolver() = new(Dict(), [])
+end
 
-# function constraints!(s::MathematicaSolver, cstr::Expr...)
-#     push!(s.cstr, cstr...)
-# end
+function variables!(s::MathematicaSolver, d::Dict{Symbol,Type})
+    push!(s.vars, d...)
+end
 
-# function solve(s::MathematicaSolver; timeout::Int=-1)
-#     @debug "Constraints and variables" s.cstr s.vars
-#     if timeout > 0
-#         result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :Integers), $(timeout), Timeout)
-#     else
-#         result = FindInstance(s.cstr, collect(keys(s.vars)), :Integers)
-#     end
-#     @debug "Result of Mathematica" result
-#     if result == :Timeout
-#         return NLSat.timeout, nothing
-#     elseif isempty(result)
-#         return NLSat.unsat, nothing
-#     end
-#     return NLSat.sat, Dict(result[1]...)
-# end
+function constraints!(s::MathematicaSolver, cstr::Vector{Expr})
+    append!(s.cstr, cstr)
+end
+
+function solve(s::MathematicaSolver; timeout::Int=30)
+    @debug "Constraints and variables" s.cstr s.vars
+    if timeout > 0
+        result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :AlgebraicNumbers), $(timeout), Timeout)
+    else
+        result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
+    end
+    @debug "Result of Mathematica" result
+    if result == :Timeout
+        return NLSat.timeout, nothing
+    elseif isempty(result)
+        return NLSat.unsat, nothing
+    end
+    return NLSat.sat, Dict(result[1]...)
+end
 
 # end #if
 
