@@ -25,6 +25,23 @@ isconstant(x::Basic) = isempty(SymEngine.free_symbols(x))
 
 # ------------------------------------------------------------------------------
 
+function dynamicsmatrix(size::Int, shape::Symbol)
+    T = Basic
+    if shape == :F
+        # full
+        B = [T("b$i$j") for i in 1:size, j in 1:size]
+    elseif shape == :U
+        # upper triangular
+        B = [j>=i ? T("b$i$j") : zero(T) for i in 1:size, j in 1:size]
+    elseif shape == :UT
+        # unitriangular
+        B = [j>i ? T("b$i$j") : i==j ? one(T) : zero(T) for i in 1:size, j in 1:size]
+    end
+    B
+end
+
+# ------------------------------------------------------------------------------
+
 function constraints(inv::Basic, dims::Int)
     B = [Basic("b$i$j") for i in 1:dims, j in 1:dims]
     constraints(B, inv)
