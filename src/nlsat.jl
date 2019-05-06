@@ -97,7 +97,6 @@ function solve(s::Z3Solver; timeout::Int=-1)
         # Z3 expects milliseconds
         s.ptr.set(timeout=timeout*1000)
     end
-    @info "" s.cstr
     res = _check(s)
     if res == sat
         m = s.ptr.model()
@@ -117,7 +116,6 @@ function solve(s::Z3Solver; timeout::Int=-1)
             else
                 @error "FIX NEEDED: unhandled type" vtype
             end
-            @info sym val
             push!(d, sym => val)
         end
         return res, d
