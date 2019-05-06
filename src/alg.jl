@@ -3,6 +3,8 @@ using SymPy
 using Combinatorics
 using LinearAlgebra
 
+export synth
+
 # ------------------------------------------------------------------------------
 
 import SymEngine.Basic
@@ -39,6 +41,36 @@ function dynamicsmatrix(size::Int, shape::Symbol)
     end
     B
 end
+
+function synth(inv::Expr)
+    p = Basic(inv)
+    fs = SymEngine.free_symbols(p)
+    filter!(!isinitvar, fs)
+
+    dims = length(fs)
+    B = dynamicsmatrix(dims, :F)
+    for ms in partitions(dims)
+        @info "Multiplicities" ms
+        varmap, cstr = constraints(B, p, ms)
+
+        solver = Z3Solver()
+        NLSat.variables!(solver, varmap)
+        NLSat.constraints!(solver, cstr)
+        status, model = NLSat.solve(solver)
+        @info "NL result" status model
+        if status == NLSat.sat
+            sol = [model[Symbol(string(b))] for b in B]
+            ivec = [model[Symbol(string(b))] for b in initvec(size(B, 1))]
+            @info "Solution found for partitioning $ms" sol ivec
+            return sol, ivec
+        else
+            @info "No solution found for partitioning $ms"
+        end
+    end
+end
+
+initvar(s::T) where {T<:Union{Symbol,Basic}} = T("$(string(s))00")
+isinitvar(s::Union{Symbol,Basic}) = endswith(string(s), "00")
 
 # ------------------------------------------------------------------------------
 
@@ -82,23 +114,19 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     cscforms = cstr_cforms(B, rs, ms)
     csroots, distinct = cstr_roots(B, rs, ms)
     csrel = cstr_algrel(p, rs, lc)
-    @info "" cscforms csroots distinct csrel
+    @info "" cscforms csroots collect(distinct) csrel
 
     cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
     bs = Iterators.flatten(B) |> collect
     vars = [cs; rs]
     varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
-    for b in bs
-        push!(varmap, Symbol(string(b))=>Rational)
-    end
-    for v in initvec(size(B, 1))
-        push!(varmap, Symbol(string(v))=>Rational)
+    for b in [bs; initvec(size(B, 1))]
+        push!(varmap, Symbol(string(b))=>AlgebraicNumber)
     end
     @info "Variables" varmap
 
     cstr_cf = map(eq, Iterators.flatten(cscforms))
     cstr_in = cstr_init(B, rs, ms)
-    @info "" cstr_in
     cstr_rt = map(eq, csroots)
     cstr_dist  = [ineq(x,y) for (x,y) in distinct]
     cstr_poly  = map(eq, csrel)
