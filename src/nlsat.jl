@@ -140,6 +140,12 @@ export MathematicaSolver
 
 using Mathematica
 
+mmatypemap = Dict{Type,Symbol}(
+    Int => :Integers,
+    Rational => :Rationals,
+    AlgebraicNumber => :Algebraics
+)
+
 struct MathematicaSolver <: NLSolver
     vars::Dict{Symbol,Type}
     cstr::Vector{Expr}
@@ -154,12 +160,12 @@ function constraints!(s::MathematicaSolver, cstr::Vector{Expr})
     append!(s.cstr, cstr)
 end
 
-function solve(s::MathematicaSolver; timeout::Int=30)
+function solve(s::MathematicaSolver; timeout::Int=-1)
     @debug "Constraints and variables" s.cstr s.vars
     if timeout > 0
         result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :AlgebraicNumbers), $(timeout), Timeout)
     else
-        result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
+        result = @FindInstance($(s.cstr), $([Element(v, mmatypemap[t]) for (v,t) in s.vars]))
     end
     @debug "Result of Mathematica" result
     if result == :Timeout
