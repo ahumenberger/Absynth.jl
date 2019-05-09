@@ -49,9 +49,10 @@ function synth(inv::Expr)
 
     dims = length(fs)
     B = dynamicsmatrix(dims, :F)
-    for ms in partitions(dims)
+    for ms in reverse(collect(partitions(dims)))
         @info "Multiplicities" ms
         varmap, cstr = constraints(B, p, ms)
+        # @info "" ideal(B, p, ms)
 
         solver = Z3Solver()
         NLSat.variables!(solver, varmap)
@@ -74,38 +75,42 @@ isinitvar(s::Union{Symbol,Basic}) = endswith(string(s), "00")
 
 # ------------------------------------------------------------------------------
 
-function constraints(inv::Basic, dims::Int)
-    B = [Basic("b$i$j") for i in 1:dims, j in 1:dims]
-    constraints(B, inv)
-end
+# function constraints(inv::Basic, dims::Int)
+#     B = [Basic("b$i$j") for i in 1:dims, j in 1:dims]
+#     constraints(B, inv)
+# end
 
-function constraints(B::Matrix{Basic}, inv::Basic)
-    for ms in partitions(size(B, 1))
-        @info "Multiplicities" ms
-        varmap, cstr = constraints(B, inv, ms)
+# function constraints(B::Matrix{Basic}, inv::Basic)
+#     for ms in partitions(size(B, 1))
+#         @info "Multiplicities" ms
+#         varmap, cstr = constraints(B, inv, ms)
 
-        solver = Z3Solver()
-        NLSat.variables!(solver, varmap)
-        NLSat.constraints!(solver, cstr)
-        status, model = NLSat.solve(solver)
-        @info "NL result" status model
-        if status == NLSat.sat
-            sol = [model[Symbol(string(b))] for b in B]
-            ivec = [model[Symbol(string(b))] for b in initvec(size(B, 1))]
-            @info "" sol ivec
-            return sol, ivec
-            break
-        else
-        end
-    end
-end
+#         solver = Z3Solver()
+#         NLSat.variables!(solver, varmap)
+#         NLSat.constraints!(solver, cstr)
+#         status, model = NLSat.solve(solver)
+#         @info "NL result" status model
+#         if status == NLSat.sat
+#             sol = [model[Symbol(string(b))] for b in B]
+#             ivec = [model[Symbol(string(b))] for b in initvec(size(B, 1))]
+#             @info "" sol ivec
+#             return sol, ivec
+#             break
+#         else
+#         end
+#     end
+# end
 
 to_expr(xs::Vector{Basic}) = map(x->convert(Expr, x), xs)
 
 eq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(==), convert(Expr, x), convert(Expr, y))
 ineq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(!=), convert(Expr, x), convert(Expr, y))
 
-function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
+gensym_unhashed(s::Symbol) = Symbol(replace(string(gensym(s)), "#"=>""))
+
+# ------------------------------------------------------------------------------
+
+function raw_constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     t = length(ms)
     rs = symroot(t)
     lc = Basic("n")
@@ -117,15 +122,13 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     csinit = cstr_init(B, rs, ms)
     csroots = cstr_roots(B, rs)
     csrel = cstr_algrel(p, rs, lc)
-    es = [collect(Iterators.flatten(cscforms)); csinit; csroots; csrel]
-    equal = map(eq, es)
+    equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; csrel]
     @info "Equality constraints" cscforms csinit csroots csrel
 
     # Inequality constraints
     csnonconst = cstr_nonconstant(B)
     csdistinct = cstr_distinct(rs)
-    ies = [csnonconst; csdistinct]
-    inequal = map(ineq, ies)
+    inequalities = [csnonconst; csdistinct]
     @info "Inequality constraints" csnonconst csdistinct
 
     cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
@@ -137,8 +140,31 @@ function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     end
     @info "Variables" varmap
 
-    varmap, [equal; inequal]
+    varmap, equalities, inequalities
 end
+
+function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
+    varmap, equalities, inequalities = raw_constraints(B, inv, ms)
+    varmap, [map(eq, equalities); map(ineq, inequalities)]
+end
+
+function ideal(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
+    varmap, equalities, inequalities = raw_constraints(B, inv, ms)
+    auxvars = [gensym_unhashed(:z) for _ in 1:length(inequalities)]
+    ineqs = [x*Basic(z) - 1 for (x,z) in zip(inequalities, auxvars)]
+    for v in auxvars
+        push!(varmap, v=>AlgebraicNumber)
+    end
+    R, _ = PolynomialRing(QQ, string.(keys(varmap)))
+    gens = spoly{Singular.n_Q}[R(convert(Expr, p)) for p in [equalities; ineqs]]
+    # @info gens
+    I = Ideal(R, gens)
+    gb = std(I)
+    @info "groebner"
+    varmap, [convert(Expr, x) for x in gb]
+end
+
+# ------------------------------------------------------------------------------
 
 function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic, exp::Basic=lc)
     t = length(rs)
@@ -217,7 +243,21 @@ function destructterm(p::Basic, rs::Vector{Basic})
         push!(ms, m)
         push!(cs, c)
     end
-    ms, cs
+    # a, b = factor(ms, cs)
+    # @info "destruct term" length(a) length(ms)
+    factor(ms, cs)
+end
+
+function factor(ms::Vector{Basic}, us::Vector{Basic})
+    map = Dict{Basic,Basic}()
+    for (m,u) in zip(ms,us)
+        if haskey(map, m)
+            map[m] += u
+        else
+            map[m] = u
+        end
+    end
+    keys(map), values(map)
 end
 
 
