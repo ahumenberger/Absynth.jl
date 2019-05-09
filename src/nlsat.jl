@@ -7,9 +7,11 @@ using PyCall
 
 # Load z3 Python library
 const z3 = PyNULL()
+const yices = PyNULL()
 
 function __init__()
     copy!(z3, pyimport("z3"))
+    copy!(yices, pyimport("yices"))
 end
 
 # ------------------------------------------------------------------------------
@@ -18,9 +20,61 @@ end
 
 abstract type NLSolver end
 
-function variables!(s::NLSolver, d::Pair{Symbol,Type}...) end
-function constraints!(s::NLSolver, c::Expr...) end
+function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
+function constraints!(s::NLSolver, c::Vector{Expr}) end
 function solve(s::NLSolver; timeout::Int = -1) end
+
+# ------------------------------------------------------------------------------
+
+function prefix(x::Expr)
+    s = sprint(Meta.show_sexpr, x)
+    s = replace(s, ":call, " => "")
+    s = replace(s, ":" => "")
+    s = replace(s, "," => "")
+    s = replace(s, "(==)" => "=")
+    s = replace(s, "!=" => "distinct")
+    s
+end
+
+yices_tmap = Dict{Type,PyObject}(
+    Int             => yices.Types.int_type(),
+    Bool            => yices.Types.bool_type(),
+    AlgebraicNumber => yices.Types.real_type(),
+    Rational        => yices.Types.real_type()
+)
+
+struct YicesSolver
+    ptr::PyObject
+    vars::Dict{Symbol, PyObject}
+    cstr::Vector{PyObject}
+end
+
+function variables!(s::YicesSolver, d::Dict{Symbol,Type})
+    for (s,t) in d
+        pyvar = yices.Terms.new_uninterpreted_term(yices_tmap[t], string(s))
+        push!(s.vars, s=>pyvar)
+    end
+end
+
+function constraints!(s::YicesSolver, cstr::Vector{Expr})
+    for c in cstr
+        push!(s.cstr, yices.Terms.parse_term(prefix(c)))
+    end
+end
+
+function solve(s::YicesSolver; timeout::Int = -1)
+    cfg = yices.Config()
+    cfg.default_config_for_logic('QF_NRA')
+    ctx = yices.Context(cfg)
+    ctx.assert_formulas(s.cstr)
+
+    status = ctx.check_context()
+    if status == yices.Status.SAT
+        m = yices.Model.from_context(ctx, 1)
+        mstr = m.to_string(80, 100, 0)
+        @info "" mstr
+    end
+end
 
 # ------------------------------------------------------------------------------
 
@@ -43,7 +97,7 @@ struct Z3Solver <: NLSolver
     ptr::PyObject
     vars::Dict{Symbol, PyObject}
     cstr::Vector{PyObject}
-    Z3Solver() = new(z3.Solver(), Dict(), [])
+    Z3Solver() = new(z3.SolverFor("QF_NRA"), Dict(), [])
 end
 
 function variables!(s::Z3Solver, d::Dict{Symbol,Type})
@@ -79,6 +133,9 @@ function constraints!(s::Z3Solver, cstr::Vector{Expr})
 end
 
 function _check(s::Z3Solver)
+    # open("/Users/ahumenberger/Downloads/cstr.smt2", "w") do io
+    #     write(io, s.ptr.to_smt2())
+    # end
     result = s.ptr.check()
     if result == z3.sat
         return NLSat.sat
@@ -136,39 +193,39 @@ typename(x::PyObject) = x.__class__.__name__
 
 # if @isdefined(Mathematica)
 
-export MathematicaSolver
+# export MathematicaSolver
 
-using Mathematica
+# using Mathematica
 
-struct MathematicaSolver <: NLSolver
-    vars::Dict{Symbol,Type}
-    cstr::Vector{Expr}
-    MathematicaSolver() = new(Dict(), [])
-end
+# struct MathematicaSolver <: NLSolver
+#     vars::Dict{Symbol,Type}
+#     cstr::Vector{Expr}
+#     MathematicaSolver() = new(Dict(), [])
+# end
 
-function variables!(s::MathematicaSolver, d::Dict{Symbol,Type})
-    push!(s.vars, d...)
-end
+# function variables!(s::MathematicaSolver, d::Dict{Symbol,Type})
+#     push!(s.vars, d...)
+# end
 
-function constraints!(s::MathematicaSolver, cstr::Vector{Expr})
-    append!(s.cstr, cstr)
-end
+# function constraints!(s::MathematicaSolver, cstr::Vector{Expr})
+#     append!(s.cstr, cstr)
+# end
 
-function solve(s::MathematicaSolver; timeout::Int=30)
-    @debug "Constraints and variables" s.cstr s.vars
-    if timeout > 0
-        result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :AlgebraicNumbers), $(timeout), Timeout)
-    else
-        result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
-    end
-    @debug "Result of Mathematica" result
-    if result == :Timeout
-        return NLSat.timeout, nothing
-    elseif isempty(result)
-        return NLSat.unsat, nothing
-    end
-    return NLSat.sat, Dict(result[1]...)
-end
+# function solve(s::MathematicaSolver; timeout::Int=30)
+#     @debug "Constraints and variables" s.cstr s.vars
+#     if timeout > 0
+#         result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :AlgebraicNumbers), $(timeout), Timeout)
+#     else
+#         result = FindInstance(s.cstr, collect(keys(s.vars)), :Rationals)
+#     end
+#     @debug "Result of Mathematica" result
+#     if result == :Timeout
+#         return NLSat.timeout, nothing
+#     elseif isempty(result)
+#         return NLSat.unsat, nothing
+#     end
+#     return NLSat.sat, Dict(result[1]...)
+# end
 
 # end #if
 
