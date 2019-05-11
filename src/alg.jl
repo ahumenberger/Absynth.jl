@@ -10,18 +10,20 @@ export synth
 import SymEngine.Basic
 import SymPy.Sym
 
-SymPy.Sym(x::Basic) = Sym(string(x))
+SymPy.Sym(x::Basic) = sympify(string(x))
 SymEngine.Basic(x::SymPy.Sym) = Basic(string(x))
 
 function coeffs(ex::Basic, x::Basic)
-    Basic.(SymPy.coeffs(Sym(ex), Sym(x)))
+    Basic.(sympy.Poly(Sym(ex), Sym(x)).coeffs())
 end
 
 function degree(ex::Basic, x::Basic)
     convert(Int, SymPy.degree(Sym(ex), gen=Sym(x)))
 end
 
-simplify(x::Basic) = Basic(SymPy.simplify(Sym(x)))
+function simplify(x::Basic)
+    Basic(SymPy.simplify(Sym(x)))
+end
 
 isconstant(x::Basic) = isempty(SymEngine.free_symbols(x))
 
