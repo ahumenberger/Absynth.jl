@@ -56,7 +56,7 @@ function synth(inv::Expr)
         varmap, cstr = constraints(B, p, ms)
         # @info "" ideal(B, p, ms)
 
-        solver = Z3Solver()
+        solver = YicesSolver()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
         status, model = NLSat.solve(solver)
