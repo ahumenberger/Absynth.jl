@@ -83,8 +83,6 @@ function solve(s::YicesSolver; timeout::Int = -1)
                 push!(d, var=>val)
             end
         end
-        mstr = m.to_string(80, 100, 0)
-        @info "" mstr
         return NLSat.sat, d
     end
 
