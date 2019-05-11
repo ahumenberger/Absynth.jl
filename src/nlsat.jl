@@ -70,9 +70,25 @@ function solve(s::YicesSolver; timeout::Int = -1)
     status = ctx.check_context()
     if status == yices.Status.SAT
         m = yices.Model.from_context(ctx, 1)
+        d = Dict{Symbol,Number}()
+        for (var, yvar) in s.vars
+            val = m.get_value(yvar)
+            if typeof(val) == PyObject
+                if typename(val) == "Fraction"
+                    push!(d, var=>Rational(val.numerator, val.denominator))
+                else
+                    @error "Unhandled return type from Yices"
+                end
+            else
+                push!(d, var=>val)
+            end
+        end
         mstr = m.to_string(80, 100, 0)
         @info "" mstr
+        return NLSat.sat, d
     end
+
+    NLSat.unsat, nothing
 end
 
 # ------------------------------------------------------------------------------
