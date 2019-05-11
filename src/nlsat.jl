@@ -1,6 +1,6 @@
 module NLSat
 
-export NLSolver, Z3Solver
+export NLSolver, Z3Solver, YicesSolver
 export variables!, constraints!, solve
 
 using PyCall
@@ -12,6 +12,10 @@ const yices = PyNULL()
 function __init__()
     copy!(z3, pyimport("z3"))
     copy!(yices, pyimport("yices"))
+    push!(yices_tmap, Int => yices.Types.int_type())
+    push!(yices_tmap, Bool => yices.Types.bool_type())
+    push!(yices_tmap, AlgebraicNumber => yices.Types.real_type())
+    push!(yices_tmap, Rational => yices.Types.real_type())
 end
 
 # ------------------------------------------------------------------------------
@@ -36,23 +40,18 @@ function prefix(x::Expr)
     s
 end
 
-yices_tmap = Dict{Type,PyObject}(
-    Int             => yices.Types.int_type(),
-    Bool            => yices.Types.bool_type(),
-    AlgebraicNumber => yices.Types.real_type(),
-    Rational        => yices.Types.real_type()
-)
+yices_tmap = Dict{Type,PyObject}()
 
 struct YicesSolver
-    ptr::PyObject
     vars::Dict{Symbol, PyObject}
     cstr::Vector{PyObject}
+    YicesSolver() = new(Dict(), [])
 end
 
 function variables!(s::YicesSolver, d::Dict{Symbol,Type})
-    for (s,t) in d
-        pyvar = yices.Terms.new_uninterpreted_term(yices_tmap[t], string(s))
-        push!(s.vars, s=>pyvar)
+    for (v,t) in d
+        pyvar = yices.Terms.new_uninterpreted_term(yices_tmap[t], string(v))
+        push!(s.vars, v=>pyvar)
     end
 end
 
@@ -64,7 +63,7 @@ end
 
 function solve(s::YicesSolver; timeout::Int = -1)
     cfg = yices.Config()
-    cfg.default_config_for_logic('QF_NRA')
+    cfg.default_config_for_logic("QF_NRA")
     ctx = yices.Context(cfg)
     ctx.assert_formulas(s.cstr)
 
