@@ -13,9 +13,16 @@ import SymPy.Sym
 SymPy.Sym(x::Basic) = sympify(string(x))
 SymEngine.Basic(x::SymPy.Sym) = Basic(string(x))
 
-function coeffs(ex::Basic, x::Basic)
-    Basic.(sympy.Poly(Sym(ex), Sym(x)).coeffs())
-end
+# if SymEngine.libversion < VersionNumber(0,4)
+    function coeffs(ex::Basic, x::Basic)
+        Basic.(sympy.Poly(Sym(ex), Sym(x)).coeffs())
+    end
+# else
+#     function coeffs(ex::Basic, x::Basic)
+#         d = degree(ex, x)
+#         [coeff(ex, x, i) for i in d:-1:0]
+#     end
+# end
 
 function degree(ex::Basic, x::Basic)
     convert(Int, SymPy.degree(Sym(ex), gen=Sym(x)))
@@ -44,16 +51,18 @@ function dynamicsmatrix(size::Int, shape::Symbol)
     B
 end
 
-function synth(inv::Expr)
-    p = Basic(inv)
-    fs = SymEngine.free_symbols(p)
+synth(x::Expr) = synth([x])
+
+function synth(invs::Vector{Expr})
+    ps = map(Basic, invs)
+    fs = SymEngine.free_symbols(ps)
     filter!(!isinitvar, fs)
 
     dims = length(fs)
     B = dynamicsmatrix(dims, :F)
     for ms in reverse(collect(partitions(dims)))
         @info "Multiplicities" ms
-        varmap, cstr = constraints(B, p, ms)
+        varmap, cstr = constraints(B, ps, ms)
         # @info "" ideal(B, p, ms)
 
         solver = YicesSolver()
@@ -112,19 +121,21 @@ gensym_unhashed(s::Symbol) = Symbol(replace(string(gensym(s)), "#"=>""))
 
 # ------------------------------------------------------------------------------
 
-function raw_constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
+function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     t = length(ms)
     rs = symroot(t)
     lc = Basic("n")
     cfs = cforms(size(B, 1), rs, ms, lc, one(Basic))
-    p = SymEngine.lambdify(inv)(cfs...)
+    fs = SymEngine.free_symbols(invs)
+    d = Dict(zip(fs, cfs))
+    ps = [SymEngine.subs(p, d...) for p in invs]
 
     # Equality constraints
     cscforms = cstr_cforms(B, rs, ms)
     csinit = cstr_init(B, rs, ms)
     csroots = cstr_roots(B, rs)
-    csrel = cstr_algrel(p, rs, lc)
-    equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; csrel]
+    csrel = [cstr_algrel(p, rs, lc) for p in ps]
+    equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; collect(Iterators.flatten(csrel))]
     @info "Equality constraints" cscforms csinit csroots csrel
 
     # Inequality constraints
@@ -145,12 +156,12 @@ function raw_constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
     varmap, equalities, inequalities
 end
 
-function constraints(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
+function constraints(B::Matrix{Basic}, inv::Vector{Basic}, ms::Vector{Int})
     varmap, equalities, inequalities = raw_constraints(B, inv, ms)
     varmap, [map(eq, equalities); map(ineq, inequalities)]
 end
 
-function ideal(B::Matrix{Basic}, inv::Basic, ms::Vector{Int})
+function ideal(B::Matrix{Basic}, inv::Vector{Basic}, ms::Vector{Int})
     varmap, equalities, inequalities = raw_constraints(B, inv, ms)
     auxvars = [gensym_unhashed(:z) for _ in 1:length(inequalities)]
     ineqs = [x*Basic(z) - 1 for (x,z) in zip(inequalities, auxvars)]
