@@ -86,32 +86,6 @@ isinitvar(s::Union{Symbol,Basic}) = endswith(string(s), "00")
 
 # ------------------------------------------------------------------------------
 
-# function constraints(inv::Basic, dims::Int)
-#     B = [Basic("b$i$j") for i in 1:dims, j in 1:dims]
-#     constraints(B, inv)
-# end
-
-# function constraints(B::Matrix{Basic}, inv::Basic)
-#     for ms in partitions(size(B, 1))
-#         @info "Multiplicities" ms
-#         varmap, cstr = constraints(B, inv, ms)
-
-#         solver = Z3Solver()
-#         NLSat.variables!(solver, varmap)
-#         NLSat.constraints!(solver, cstr)
-#         status, model = NLSat.solve(solver)
-#         @info "NL result" status model
-#         if status == NLSat.sat
-#             sol = [model[Symbol(string(b))] for b in B]
-#             ivec = [model[Symbol(string(b))] for b in initvec(size(B, 1))]
-#             @info "" sol ivec
-#             return sol, ivec
-#             break
-#         else
-#         end
-#     end
-# end
-
 to_expr(xs::Vector{Basic}) = map(x->convert(Expr, x), xs)
 
 eq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(==), convert(Expr, x), convert(Expr, y))
