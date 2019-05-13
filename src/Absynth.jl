@@ -1,7 +1,6 @@
 module Absynth
 
 include("nlsat.jl")
-include("variety.jl")
 include("alg.jl")
 
 using MacroTools
