@@ -5,17 +5,25 @@ export variables!, constraints!, solve
 
 using PyCall
 
-# Load z3 Python library
+# Load Python libraries
 const z3 = PyNULL()
 const yices = PyNULL()
 
+z3_typemap = Dict{Type,Function}()
+yices_typemap = Dict{Type,PyObject}()
+
 function __init__()
     copy!(z3, pyimport("z3"))
+    push!(z3_typemap, Int             => z3.Int)
+    push!(z3_typemap, Bool            => z3.Bool)
+    push!(z3_typemap, AlgebraicNumber => z3.Real)
+    push!(z3_typemap, Rational        => z3.Real)
+
     copy!(yices, pyimport("yices"))
-    push!(yices_z3_typemap, Int => yices.Types.int_type())
-    push!(yices_z3_typemap, Bool => yices.Types.bool_type())
-    push!(yices_z3_typemap, AlgebraicNumber => yices.Types.real_type())
-    push!(yices_z3_typemap, Rational => yices.Types.real_type())
+    push!(yices_typemap, Int              => yices.Types.int_type())
+    push!(yices_typemap, Bool             => yices.Types.bool_type())
+    push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
+    push!(yices_typemap, Rational         => yices.Types.real_type())
 end
 
 # ------------------------------------------------------------------------------
@@ -44,8 +52,6 @@ function prefix(x::Expr)
     s = replace(s, "!=" => "distinct")
     s
 end
-
-yices_typemap = Dict{Type,PyObject}()
 
 struct YicesSolver
     vars::Dict{Symbol, PyObject}
@@ -96,12 +102,6 @@ end
 
 # ------------------------------------------------------------------------------
 
-z3_typemap = Dict{Type,Function}(
-    Int             => z3.Int,
-    Bool            => z3.Bool,
-    AlgebraicNumber => z3.Real,
-    Rational        => z3.Real
-)
 
 struct Z3Solver <: NLSolver
     ptr::PyObject

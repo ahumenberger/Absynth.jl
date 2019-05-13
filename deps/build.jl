@@ -1,3 +1,4 @@
-deps_pip = ["z3-solver", "yices"]
+using PyCall
 
-run(`$(PyCall.pyprogramname) -m pip install -- $(join(deps_pip, " "))`)
+deps_pip = ["z3-solver", "yices"]
+run(`$(PyCall.pyprogramname) -m pip install -- $deps_pip`)
