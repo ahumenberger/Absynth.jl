@@ -12,11 +12,16 @@ const yices = PyNULL()
 function __init__()
     copy!(z3, pyimport("z3"))
     copy!(yices, pyimport("yices"))
-    push!(yices_tmap, Int => yices.Types.int_type())
-    push!(yices_tmap, Bool => yices.Types.bool_type())
-    push!(yices_tmap, AlgebraicNumber => yices.Types.real_type())
-    push!(yices_tmap, Rational => yices.Types.real_type())
+    push!(yices_z3_typemap, Int => yices.Types.int_type())
+    push!(yices_z3_typemap, Bool => yices.Types.bool_type())
+    push!(yices_z3_typemap, AlgebraicNumber => yices.Types.real_type())
+    push!(yices_z3_typemap, Rational => yices.Types.real_type())
 end
+
+# ------------------------------------------------------------------------------
+
+abstract type AlgebraicNumber end
+export AlgebraicNumber
 
 # ------------------------------------------------------------------------------
 
@@ -40,7 +45,7 @@ function prefix(x::Expr)
     s
 end
 
-yices_tmap = Dict{Type,PyObject}()
+yices_typemap = Dict{Type,PyObject}()
 
 struct YicesSolver
     vars::Dict{Symbol, PyObject}
@@ -50,7 +55,7 @@ end
 
 function variables!(s::YicesSolver, d::Dict{Symbol,Type})
     for (v,t) in d
-        pyvar = yices.Terms.new_uninterpreted_term(yices_tmap[t], string(v))
+        pyvar = yices.Terms.new_uninterpreted_term(yices_typemap[t], string(v))
         push!(s.vars, v=>pyvar)
     end
 end
@@ -91,19 +96,11 @@ end
 
 # ------------------------------------------------------------------------------
 
-Z3Real(name::String) = z3.Real(name)
-Z3Int(name::String) = z3.Int(name)
-Z3Bool(name::String) = z3.Bool(name)
-
-abstract type AlgebraicNumber end
-export AlgebraicNumber
-
-typemap = Dict{Type,Function}(
-    Int             => Z3Int,
-    Bool            => Z3Bool,
-    AlgebraicNumber => Z3Real,
-    Float32         => Z3Real,
-    Rational        => Z3Real
+z3_typemap = Dict{Type,Function}(
+    Int             => z3.Int,
+    Bool            => z3.Bool,
+    AlgebraicNumber => z3.Real,
+    Rational        => z3.Real
 )
 
 struct Z3Solver <: NLSolver
@@ -115,11 +112,11 @@ end
 
 function variables!(s::Z3Solver, d::Dict{Symbol,Type})
     for (var, type) in d
-        push!(s.vars, var => typemap[type](string(var)))
+        push!(s.vars, var => z3_typemap[type](string(var)))
         if type == Rational
             p, q = gensym("p"), gensym("q")
-            push!(s.vars, p => Z3Int(string(p)))
-            push!(s.vars, q => Z3Int(string(q)))
+            push!(s.vars, p => z3.Int(string(p)))
+            push!(s.vars, q => z3.Int(string(q)))
             constraints!(s, [:($q > 0), :($p/$q == $(var))])
         end
     end
@@ -210,7 +207,7 @@ typename(x::PyObject) = x.__class__.__name__
 
 # using Mathematica
 
-# mmatypemap = Dict{Type,Symbol}(
+# mma_typemap = Dict{Type,Symbol}(
 #     Int => :Integers,
 #     Rational => :Rationals,
 #     AlgebraicNumber => :Algebraics
@@ -235,7 +232,7 @@ typename(x::PyObject) = x.__class__.__name__
 #     if timeout > 0
 #         result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :AlgebraicNumbers), $(timeout), Timeout)
 #     else
-#         result = @FindInstance($(s.cstr), $([Element(v, mmatypemap[t]) for (v,t) in s.vars]))
+#         result = @FindInstance($(s.cstr), $([Element(v, mma_typemap[t]) for (v,t) in s.vars]))
 #     end
 #     @debug "Result of Mathematica" result
 #     if result == :Timeout
