@@ -11,12 +11,16 @@ using Absynth.NLSat
 # ------------------------------------------------------------------------------
 
 export Loop
+export value, values
 
 struct Loop
     vars::Vector{Basic}
     init::Vector{Basic}
     body::Matrix{Basic}
 end
+
+value(l::Loop, k::Int) = l.body^k * l.init
+values(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 
 # ------------------------------------------------------------------------------
 
