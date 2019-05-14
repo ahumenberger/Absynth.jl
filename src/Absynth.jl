@@ -6,7 +6,11 @@ using SymEngine
 include("nlsat.jl")
 
 using Absynth.NLSat
-export YicesSolver, Z3Solver
+
+const Yices = YicesSolver
+const Z3 = Z3Solver
+
+export YicesSolver, Z3Solver, Yices, Z3
 
 include("alg.jl")
 
