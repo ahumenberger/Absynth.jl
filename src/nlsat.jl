@@ -43,6 +43,17 @@ function solve(s::NLSolver; timeout::Int = -1) end
 
 # ------------------------------------------------------------------------------
 
+struct NLSolutions
+    solver::NLSolver
+    status::NLStatus
+end
+
+function Base.iterate(it::NLSolutions)
+    res = solve(it.solver)
+end
+
+# ------------------------------------------------------------------------------
+
 function prefix(x::Expr)
     s = sprint(Meta.show_sexpr, x)
     s = replace(s, ":call, " => "")
