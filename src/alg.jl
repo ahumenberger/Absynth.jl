@@ -185,6 +185,8 @@ function cstr_nonconstant(B::Matrix{Basic})
     B * B * ivec - B * ivec
 end
 
+LinearAlgebra.det(m::Matrix{Basic}) = det(convert(SymEngine.CDenseMatrix, m))
+
 "Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
 function cstr_roots(B::Matrix{Basic}, rs::Vector{Basic})
     λ = Basic("lbd")
