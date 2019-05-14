@@ -74,7 +74,7 @@ function synth(invs::Vector{Expr})
             sol = [model[Symbol(string(b))] for b in B]
             ivec = [model[Symbol(string(b))] for b in initvec(size(B, 1))]
             @info "Solution found for partitioning $ms" sol ivec
-            return sol, ivec
+            return Loop(fs, ivec, sol)
         else
             @info "No solution found for partitioning $ms"
         end
