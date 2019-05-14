@@ -53,7 +53,7 @@ end
 
 synth(x::Expr) = synth([x])
 
-function synth(invs::Vector{Expr})
+function synth(::Type{T}, invs::Vector{Expr}) where {T<:NLSolver}
     ps = map(Basic, invs)
     fs = SymEngine.free_symbols(ps)
     filter!(!isinitvar, fs)
@@ -65,7 +65,7 @@ function synth(invs::Vector{Expr})
         varmap, cstr = constraints(B, ps, ms)
         # @info "" ideal(B, p, ms)
 
-        solver = YicesSolver()
+        solver = T()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
         status, model = NLSat.solve(solver)
@@ -246,7 +246,7 @@ function factor(ms::Vector{Basic}, us::Vector{Basic})
             map[m] = u
         end
     end
-    keys(map), values(map)
+    keys(map), Base.values(map)
 end
 
 

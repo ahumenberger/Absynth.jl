@@ -4,9 +4,11 @@ using MacroTools
 using SymEngine
 
 include("nlsat.jl")
-include("alg.jl")
 
 using Absynth.NLSat
+export YicesSolver, Z3Solver
+
+include("alg.jl")
 
 # ------------------------------------------------------------------------------
 

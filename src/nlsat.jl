@@ -53,7 +53,7 @@ function prefix(x::Expr)
     s
 end
 
-struct YicesSolver
+struct YicesSolver <: NLSolver
     vars::Dict{Symbol, PyObject}
     cstr::Vector{PyObject}
     YicesSolver() = new(Dict(), [])
