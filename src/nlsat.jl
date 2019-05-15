@@ -1,6 +1,7 @@
 module NLSat
 
 export NLSolver, Z3Solver, YicesSolver
+export NLStatus
 export variables!, constraints!, solve
 
 using PyCall
@@ -13,11 +14,15 @@ z3_typemap = Dict{Type,Function}()
 yices_typemap = Dict{Type,PyObject}()
 
 function __init__()
-    copy!(z3, pyimport("z3"))
-    push!(z3_typemap, Int             => z3.Int)
-    push!(z3_typemap, Bool            => z3.Bool)
-    push!(z3_typemap, AlgebraicNumber => z3.Real)
-    push!(z3_typemap, Rational        => z3.Real)
+    try
+        copy!(z3, pyimport("z3"))
+        push!(z3_typemap, Int             => z3.Int)
+        push!(z3_typemap, Bool            => z3.Bool)
+        push!(z3_typemap, AlgebraicNumber => z3.Real)
+        push!(z3_typemap, Rational        => z3.Real)
+    catch
+        @error "Could not load Z3"
+    end
 
     copy!(yices, pyimport("yices"))
     push!(yices_typemap, Int              => yices.Types.int_type())
@@ -40,17 +45,6 @@ abstract type NLSolver end
 function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
 function constraints!(s::NLSolver, c::Vector{Expr}) end
 function solve(s::NLSolver; timeout::Int = -1) end
-
-# ------------------------------------------------------------------------------
-
-struct NLSolutions
-    solver::NLSolver
-    status::NLStatus
-end
-
-function Base.iterate(it::NLSolutions)
-    res = solve(it.solver)
-end
 
 # ------------------------------------------------------------------------------
 
