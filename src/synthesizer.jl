@@ -1,4 +1,4 @@
-import Base: iterate, length, IteratorSize, HasLength
+import Base: iterate, length, IteratorSize, HasLength, SizeUnknown
 
 export Loop
 export value, values
@@ -30,7 +30,7 @@ end
 iterate(it::Solutions) = iterate(it, 0)
 
 function iterate(it::Solutions, state)
-    it.status, model = NLSat.solve(it.solver, it.timeout)
+    it.status, model = NLSat.solve(it.solver, timeout=it.timeout)
     if it.status == NLSat.sat
         body = [model[Symbol(string(b))] for b in it.body]
         init = [model[Symbol(string(b))] for b in initvec(size(it.body, 1))]
@@ -92,6 +92,8 @@ struct MultiSynthesizer{T<:NLSolver}
     synth::Synthesizer{T}
     maxsol::Int
 end
+
+IteratorSize(::Type{MultiSynthesizer}) = SizeUnknown()
 
 iterate(ms::MultiSynthesizer) = first_sol(ms, iterate(ms.synth))
 

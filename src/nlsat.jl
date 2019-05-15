@@ -88,8 +88,18 @@ function solve(s::YicesSolver; timeout::Int = -1)
     cfg.default_config_for_logic("QF_NRA")
     ctx = yices.Context(cfg)
     ctx.assert_formulas(s.cstr)
+    @warn "timeout" timeout
 
-    status = ctx.check_context()
+    if timeout < 0
+        ctx.check_context()
+    else
+        @info "timeout set"
+        # Timer((timer) -> begin ctx.stop_search(); close(timer) end, timeout)
+        yield(Task(() -> ctx.stop_search()))
+        ctx.check_context()
+    end
+
+    status = ctx.status()
     if status == yices.Status.SAT
         m = yices.Model.from_context(ctx, 1)
         d = Dict{Symbol,Number}()
@@ -106,6 +116,10 @@ function solve(s::YicesSolver; timeout::Int = -1)
             end
         end
         return NLSat.sat, d
+    elseif status == yices.Status.UNSAT
+        return NLSat.unsat, nothing
+    elseif status == yices.Status.INTERRUPTED
+        return NLSat.timeout, nothing
     end
 
     NLSat.unsat, nothing
