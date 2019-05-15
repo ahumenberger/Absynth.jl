@@ -20,15 +20,21 @@ function __init__()
         push!(z3_typemap, Bool            => z3.Bool)
         push!(z3_typemap, AlgebraicNumber => z3.Real)
         push!(z3_typemap, Rational        => z3.Real)
+        @info "Z3 available"
     catch
         @error "Could not load Z3"
     end
 
-    copy!(yices, pyimport("yices"))
-    push!(yices_typemap, Int              => yices.Types.int_type())
-    push!(yices_typemap, Bool             => yices.Types.bool_type())
-    push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
-    push!(yices_typemap, Rational         => yices.Types.real_type())
+    try
+        copy!(yices, pyimport("yices"))
+        push!(yices_typemap, Int              => yices.Types.int_type())
+        push!(yices_typemap, Bool             => yices.Types.bool_type())
+        push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
+        push!(yices_typemap, Rational         => yices.Types.real_type())
+        @info "Yices available"
+    catch
+        @error "Could not load Yices"
+    end
 end
 
 # ------------------------------------------------------------------------------
