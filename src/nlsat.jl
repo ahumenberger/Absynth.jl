@@ -5,6 +5,7 @@ export NLStatus
 export variables!, constraints!, solve
 
 using PyCall
+using DelimitedFiles
 
 # Load Python libraries
 const z3 = PyNULL()
@@ -67,7 +68,8 @@ end
 struct YicesSolver <: NLSolver
     vars::Dict{Symbol, PyObject}
     cstr::Vector{PyObject}
-    YicesSolver() = new(Dict(), [])
+    input::Vector{String}
+    YicesSolver() = new(Dict(), [], [])
 end
 
 function variables!(s::YicesSolver, d::Dict{Symbol,Type})
@@ -79,7 +81,10 @@ end
 
 function constraints!(s::YicesSolver, cstr::Vector{Expr})
     for c in cstr
-        push!(s.cstr, yices.Terms.parse_term(prefix(c)))
+        prefix_str = prefix(c)
+        push!(s.cstr, yices.Terms.parse_term(prefix_str))
+        @info yices.Terms.to_string(yices.Terms.parse_term(prefix_str))
+        push!(s.input, yices.Terms.to_string(yices.Terms.parse_term(prefix_str), 1000))
     end
 end
 
@@ -94,9 +99,33 @@ function solve(s::YicesSolver; timeout::Int = -1)
         ctx.check_context()
     else
         @info "timeout set"
-        # Timer((timer) -> begin ctx.stop_search(); close(timer) end, timeout)
-        yield(Task(() -> ctx.stop_search()))
-        ctx.check_context()
+
+        # @async remotecall_fetch(ctx.check_context())
+        # ptimeout(ctx.check_context(), 2)
+        # stop = ctx.stop_search
+        # Timer((timer) -> begin println("asdfkljasd"); pycall(stop) end, 10)
+        # yield(Task(() -> ctx.stop_search()))
+    #    t = @async threadpycall(ctx.check_context)
+    #     timedwait(()->false, 2.0)
+    #     @info "after wait"
+    #     ex = InterruptException()
+    #     Base.throwto(t, ex) 
+        # asyncio.run(ctx.check_context())
+        # @info fetch(t)
+        (path, io) = mktemp()
+        # mktemp() do path, io
+            # writedlm(io, [s.input; "(set-timeout $timeout)"])
+            # writedlm(io, ["(define $v::real)" for v in keys(s.vars)])
+            writedlm(io, ["(declare-const $v Real)" for v in keys(s.vars)])
+            writedlm(io, [["(assert $x)" for x in s.input]; ["(check-sat)", "(get-model"]])
+            @info path
+            close(io)
+            
+        # end
+        # (path, io) = mktemp()
+
+        # close(io)
+        # @info path
     end
 
     status = ctx.status()
