@@ -6,6 +6,7 @@ export variables!, constraints!, solve
 
 using PyCall
 using DelimitedFiles
+using Distributed
 
 # Load Python libraries
 const z3 = PyNULL()
@@ -66,16 +67,18 @@ function prefix(x::Expr)
 end
 
 struct YicesSolver <: NLSolver
-    vars::Dict{Symbol, PyObject}
+    vars::Dict{Symbol,Type}
+    pyvars::Dict{Symbol, PyObject}
     cstr::Vector{PyObject}
     input::Vector{String}
-    YicesSolver() = new(Dict(), [], [])
+    YicesSolver() = new(Dict(), Dict(), [], [])
 end
 
 function variables!(s::YicesSolver, d::Dict{Symbol,Type})
     for (v,t) in d
         pyvar = yices.Terms.new_uninterpreted_term(yices_typemap[t], string(v))
-        push!(s.vars, v=>pyvar)
+        push!(s.pyvars, v=>pyvar)
+        push!(s.vars, v=>t)
     end
 end
 
@@ -95,63 +98,52 @@ function solve(s::YicesSolver; timeout::Int = -1)
     ctx.assert_formulas(s.cstr)
     @warn "timeout" timeout
 
+    @info "timeout set"
+    (path, io) = mktemp()
+    write_yices(io, s)
+    write(io, "(check)\n")
+    write(io, "(show-model)\n")
+    close(io)
+    P = open(`yices --logic=QF_NRA $path`)
+
     if timeout < 0
-        ctx.check_context()
+        wait(P)
     else
-        @info "timeout set"
-
-        # @async remotecall_fetch(ctx.check_context())
-        # ptimeout(ctx.check_context(), 2)
-        # stop = ctx.stop_search
-        # Timer((timer) -> begin println("asdfkljasd"); pycall(stop) end, 10)
-        # yield(Task(() -> ctx.stop_search()))
-    #    t = @async threadpycall(ctx.check_context)
-    #     timedwait(()->false, 2.0)
-    #     @info "after wait"
-    #     ex = InterruptException()
-    #     Base.throwto(t, ex) 
-        # asyncio.run(ctx.check_context())
-        # @info fetch(t)
-        (path, io) = mktemp()
-        # mktemp() do path, io
-            # writedlm(io, [s.input; "(set-timeout $timeout)"])
-            # writedlm(io, ["(define $v::real)" for v in keys(s.vars)])
-            writedlm(io, ["(declare-const $v Real)" for v in keys(s.vars)])
-            writedlm(io, [["(assert $x)" for x in s.input]; ["(check-sat)", "(get-model"]])
-            @info path
-            close(io)
-            
-        # end
-        # (path, io) = mktemp()
-
-        # close(io)
-        # @info path
-    end
-
-    status = ctx.status()
-    if status == yices.Status.SAT
-        m = yices.Model.from_context(ctx, 1)
-        d = Dict{Symbol,Number}()
-        for (var, yvar) in s.vars
-            val = m.get_value(yvar)
-            if typeof(val) == PyObject
-                if typename(val) == "Fraction"
-                    push!(d, var=>Rational(val.numerator, val.denominator))
-                else
-                    @error "Unhandled return type from Yices"
-                end
-            else
-                push!(d, var=>val)
-            end
+        timedwait(()->!process_running(P), 5.0)
+        if process_running(P)
+            @info "kill"
+            kill(P)
+            close(P.in)
+            return NLSat.timeout, nothing
         end
-        return NLSat.sat, d
-    elseif status == yices.Status.UNSAT
-        return NLSat.unsat, nothing
-    elseif status == yices.Status.INTERRUPTED
-        return NLSat.timeout, nothing
     end
 
-    NLSat.unsat, nothing
+    if success(P)
+        lines = readlines(P)
+        status = popfirst!(lines)
+        if status == "sat"
+            d = Dict{Symbol,Number}()
+            for l in lines
+                ll = l[4:end-1]
+                (x,y) = split(ll, limit=2)
+                sym = Symbol(x)
+                val = parse(Int, y)
+                push!(d, sym=>val)
+            end
+            return NLSat.sat, d
+        elseif status == "unsat"
+            return NLSat.unsat, nothing
+        end
+
+        @error("unknown yices status: $status")
+    end
+    NLSat.unknown, nothing
+end
+
+function write_yices(io::IO, s::YicesSolver)
+    writedlm(io, ["(define $v::real)" for v in keys(s.vars)])
+    writedlm(io, ["(assert $x)" for x in s.input])
+    # writedlm(io, ["(check)"])
 end
 
 # ------------------------------------------------------------------------------
