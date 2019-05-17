@@ -9,6 +9,9 @@ struct Loop
     vars::Vector{Basic}
     init::Vector{Basic}
     body::Matrix{Basic}
+
+    polys::Vector{Basic}
+    roots::Vector{Int}
 end
 
 value(l::Loop, k::Int) = l.body^k * l.init
@@ -19,12 +22,14 @@ values(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 mutable struct Solutions
     solver::NLSolver
     status::NLStatus
+    timeout::Int # seconds
     body::Matrix{Basic}
     vars::Vector{Basic}
-    timeout::Int # seconds
+    polys::Vector{Basic}
+    roots::Vector{Int} # multiplicities
 
-    Solutions(s::NLSolver, b::Matrix{Basic}, vars::Vector{Basic}, timeout::Int) =
-        new(s, NLSat.sat, b, vars, timeout)
+    Solutions(s::NLSolver, timeout::Int, b::Matrix{Basic}, vars::Vector{Basic}, polys::Vector{Basic}, roots::Vector{Int}) =
+        new(s, NLSat.sat, timeout, b, vars, polys, roots)
 end
 
 iterate(it::Solutions) = iterate(it, 0)
@@ -34,7 +39,7 @@ function iterate(it::Solutions, state)
     if it.status == NLSat.sat
         body = [model[Symbol(string(b))] for b in it.body]
         init = [model[Symbol(string(b))] for b in initvec(size(it.body, 1))]
-        return Loop(it.vars, init, body), state+1
+        return Loop(it.vars, init, body, it.polys, it.roots), state+1
     end
     return nothing
 end
@@ -74,7 +79,7 @@ function next(s::Synthesizer{T}, next) where {T}
         solver = T()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
-        return Solutions(solver, s.body, s.vars, s.timeout), state
+        return Solutions(solver, s.timeout, s.body, s.vars, s.polys, ms), state
     end
     return nothing
 end
