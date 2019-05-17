@@ -100,13 +100,13 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     csroots = cstr_roots(B, rs)
     csrel = [cstr_algrel(p, rs, lc) for p in ps]
     equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; collect(Iterators.flatten(csrel))]
-    @info "Equality constraints" cscforms csinit csroots csrel
+    @debug "Equality constraints" cscforms csinit csroots csrel
 
     # Inequality constraints
     csnonconst = cstr_nonconstant(B)
     csdistinct = cstr_distinct(rs)
     inequalities = [csnonconst; csdistinct]
-    @info "Inequality constraints" csnonconst csdistinct
+    @debug "Inequality constraints" csnonconst csdistinct
 
     cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
     bs = Iterators.flatten(B) |> collect
@@ -115,7 +115,7 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     for b in [bs; initvec(size(B, 1))]
         push!(varmap, Symbol(string(b))=>AlgebraicNumber)
     end
-    @info "Variables" varmap
+    @debug "Variables" varmap
 
     varmap, equalities, inequalities
 end
@@ -134,10 +134,8 @@ function ideal(B::Matrix{Basic}, inv::Vector{Basic}, ms::Vector{Int})
     end
     R, _ = PolynomialRing(QQ, string.(keys(varmap)))
     gens = spoly{Singular.n_Q}[R(convert(Expr, p)) for p in [equalities; ineqs]]
-    # @info gens
     I = Ideal(R, gens)
     gb = std(I)
-    @info "groebner"
     varmap, [convert(Expr, x) for x in gb]
 end
 

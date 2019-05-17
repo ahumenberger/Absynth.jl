@@ -86,7 +86,6 @@ function constraints!(s::YicesSolver, cstr::Vector{Expr})
     for c in cstr
         prefix_str = prefix(c)
         push!(s.cstr, yices.Terms.parse_term(prefix_str))
-        @info yices.Terms.to_string(yices.Terms.parse_term(prefix_str))
         push!(s.input, yices.Terms.to_string(yices.Terms.parse_term(prefix_str), 1000))
     end
 end
@@ -96,9 +95,7 @@ function solve(s::YicesSolver; timeout::Int = -1)
     cfg.default_config_for_logic("QF_NRA")
     ctx = yices.Context(cfg)
     ctx.assert_formulas(s.cstr)
-    @warn "timeout" timeout
 
-    @info "timeout set"
     (path, io) = mktemp()
     write_yices(io, s)
     write(io, "(check)\n")
@@ -111,7 +108,7 @@ function solve(s::YicesSolver; timeout::Int = -1)
     else
         timedwait(()->!process_running(P), 5.0)
         if process_running(P)
-            @info "kill"
+            @debug "Kill yices"
             kill(P)
             close(P.in)
             return NLSat.timeout, nothing
@@ -137,13 +134,13 @@ function solve(s::YicesSolver; timeout::Int = -1)
 
         @error("unknown yices status: $status")
     end
+
     NLSat.unknown, nothing
 end
 
 function write_yices(io::IO, s::YicesSolver)
     writedlm(io, ["(define $v::real)" for v in keys(s.vars)])
     writedlm(io, ["(assert $x)" for x in s.input])
-    # writedlm(io, ["(check)"])
 end
 
 # ------------------------------------------------------------------------------
