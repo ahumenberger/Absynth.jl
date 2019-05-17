@@ -5,13 +5,22 @@ export value, values
 
 # ------------------------------------------------------------------------------
 
-struct Loop
+struct SynthInfo
+    solver::Type{<:NLSolver}
     vars::Vector{Basic}
-    init::Vector{Basic}
-    body::Matrix{Basic}
-
     polys::Vector{Basic}
     roots::Vector{Int}
+    shape::Symbol
+    body::Matrix{Basic}
+    timeout::Int
+end
+
+# ------------------------------------------------------------------------------
+
+struct Loop
+    init::Vector{Basic}
+    body::Matrix{Basic}
+    info::SynthInfo
 end
 
 value(l::Loop, k::Int) = l.body^k * l.init
@@ -22,24 +31,19 @@ values(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 mutable struct Solutions
     solver::NLSolver
     status::NLStatus
-    timeout::Int # seconds
-    body::Matrix{Basic}
-    vars::Vector{Basic}
-    polys::Vector{Basic}
-    roots::Vector{Int} # multiplicities
+    info::SynthInfo
 
-    Solutions(s::NLSolver, timeout::Int, b::Matrix{Basic}, vars::Vector{Basic}, polys::Vector{Basic}, roots::Vector{Int}) =
-        new(s, NLSat.sat, timeout, b, vars, polys, roots)
+    Solutions(s::NLSolver, info::SynthInfo) = new(s, NLSat.sat, info)
 end
 
 iterate(it::Solutions) = iterate(it, 0)
 
 function iterate(it::Solutions, state)
-    it.status, model = NLSat.solve(it.solver, timeout=it.timeout)
+    it.status, model = NLSat.solve(it.solver, timeout=it.info.timeout)
     if it.status == NLSat.sat
-        body = [model[Symbol(string(b))] for b in it.body]
-        init = [model[Symbol(string(b))] for b in initvec(size(it.body, 1))]
-        return Loop(it.vars, init, body, it.polys, it.roots), state+1
+        body = [model[Symbol(string(b))] for b in it.info.body]
+        init = [model[Symbol(string(b))] for b in initvec(size(it.info.body, 1))]
+        return Loop(init, body, it.info), state+1
     end
     return nothing
 end
@@ -53,6 +57,7 @@ struct Synthesizer{T<:NLSolver}
     polys::Vector{Basic}
     roots::Combinatorics.IntegerPartitions # multiplicities of roots
     vars::Vector{Basic}
+    shape::Symbol
     timeout::Int # seconds
 
     function Synthesizer(::Type{T}, polys::Vector{Expr}, shape::Symbol) where {T<:NLSolver}
@@ -62,7 +67,7 @@ struct Synthesizer{T<:NLSolver}
     
         dims = length(fs)
         body = dynamicsmatrix(dims, shape)
-        new{T}(body, ps, partitions(dims), fs, 5)
+        new{T}(body, ps, partitions(dims), fs, shape, 5)
     end
 end
 
@@ -79,7 +84,8 @@ function next(s::Synthesizer{T}, next) where {T}
         solver = T()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
-        return Solutions(solver, s.timeout, s.body, s.vars, s.polys, ms), state
+        info = SynthInfo(T, s.vars, s.polys, ms, s.shape, s.body, s.timeout)
+        return Solutions(solver, info), state
     end
     return nothing
 end
