@@ -18,8 +18,9 @@ export YicesSolver, Z3Solver, Yices, Z3
 include("constraints.jl")
 include("synthesizer.jl")
 include("show.jl")
+include("report.jl")
 
-export synth
+export synth, report
 
 # ------------------------------------------------------------------------------
 
