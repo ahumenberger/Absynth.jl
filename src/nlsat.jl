@@ -106,7 +106,7 @@ function solve(s::YicesSolver; timeout::Int = -1)
     if timeout < 0
         wait(P)
     else
-        timedwait(()->!process_running(P), 5.0)
+        timedwait(()->!process_running(P), float(timeout))
         if process_running(P)
             @debug "Kill yices"
             kill(P)

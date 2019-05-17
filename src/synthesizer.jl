@@ -5,6 +5,16 @@ export value, values
 
 # ------------------------------------------------------------------------------
 
+struct Loop
+    init::Vector{Basic}
+    body::Matrix{Basic}
+end
+
+value(l::Loop, k::Int) = l.body^k * l.init
+values(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
+
+# ------------------------------------------------------------------------------
+
 struct SynthInfo
     solver::Type{<:NLSolver}
     vars::Vector{Basic}
@@ -15,16 +25,10 @@ struct SynthInfo
     timeout::Int
 end
 
-# ------------------------------------------------------------------------------
-
-struct Loop
-    init::Vector{Basic}
-    body::Matrix{Basic}
+struct SynthResult
+    result::Union{Loop,NLStatus}
     info::SynthInfo
 end
-
-value(l::Loop, k::Int) = l.body^k * l.init
-values(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 
 # ------------------------------------------------------------------------------
 
@@ -43,12 +47,12 @@ function iterate(it::Solutions, state)
     if it.status == NLSat.sat
         body = [model[Symbol(string(b))] for b in it.info.body]
         init = [model[Symbol(string(b))] for b in initvec(size(it.info.body, 1))]
-        return Loop(init, body, it.info), state+1
+        return SynthResult(Loop(init, body), it.info), state+1
     end
     return nothing
 end
 
-reason(s::Solutions) = s.status
+reason(s::Solutions) = SynthResult(s.status, s.info)
 
 # ------------------------------------------------------------------------------
 
@@ -60,14 +64,14 @@ struct Synthesizer{T<:NLSolver}
     shape::Symbol
     timeout::Int # seconds
 
-    function Synthesizer(::Type{T}, polys::Vector{Expr}, shape::Symbol) where {T<:NLSolver}
+    function Synthesizer(::Type{T}, polys::Vector{Expr}, shape::Symbol, timeout::Int) where {T<:NLSolver}
         ps = map(Basic, polys)
         fs = SymEngine.free_symbols(ps)
         filter!(!isinitvar, fs)
     
         dims = length(fs)
         body = dynamicsmatrix(dims, shape)
-        new{T}(body, ps, partitions(dims), fs, shape, 5)
+        new{T}(body, ps, partitions(dims), fs, shape, timeout)
     end
 end
 
@@ -97,7 +101,7 @@ synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
 # ------------------------------------------------------------------------------
 
 synth(t::Type{T}, polys::Vector{Expr}, timeout::Int, maxsol::Int) where {T<:NLSolver} =
-    MultiSynthesizer(Synthesizer(t, polys, :F), maxsol)
+    MultiSynthesizer(Synthesizer(t, polys, :F, timeout), maxsol)
 
 struct MultiSynthesizer{T<:NLSolver}
     synth::Synthesizer{T}
