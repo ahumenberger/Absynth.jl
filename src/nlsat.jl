@@ -9,6 +9,8 @@ using DelimitedFiles
 using Distributed
 
 # Load Python libraries
+const pyio = PyNULL()
+const smtparser = PyNULL()
 const z3 = PyNULL()
 const yices = PyNULL()
 
@@ -16,6 +18,8 @@ z3_typemap = Dict{Type,Function}()
 yices_typemap = Dict{Type,PyObject}()
 
 function __init__()
+    copy!(smtparser, pyimport("pysmt.smtlib.parser"))
+    copy!(pyio, pyimport("io"))
     try
         copy!(z3, pyimport("z3"))
         push!(z3_typemap, Int             => z3.Int)
@@ -53,6 +57,36 @@ abstract type NLSolver end
 function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
 function constraints!(s::NLSolver, c::Vector{Expr}) end
 function solve(s::NLSolver; timeout::Int = -1) end
+
+# ------------------------------------------------------------------------------
+
+function openproc(parse::Function, cmd::Cmd; timeout=-1)
+    P = open(cmd)
+    if timeout < 0
+        wait(P)
+    else
+        timedwait(()->!process_running(P), float(timeout))
+        if process_running(P)
+            @debug "Kill"
+            kill(P)
+            close(P.in)
+            return NLSat.timeout, nothing
+        end
+    end
+    if success(P)
+        lines = readlines(P)
+        status = popfirst!(lines)
+        if status == "sat"
+            d = parse(lines)
+            return NLSat.sat, d
+        elseif status == "unsat"
+            return NLSat.unsat, nothing
+        end
+
+        @error("Unknown status: $status")
+    end
+    return NLSat.unknown, nothing
+end
 
 # ------------------------------------------------------------------------------
 
@@ -96,29 +130,10 @@ function solve(s::YicesSolver; timeout::Int = -1)
     ctx = yices.Context(cfg)
     ctx.assert_formulas(s.cstr)
 
-    (path, io) = mktemp()
-    write_yices(io, s)
-    write(io, "(check)\n")
-    write(io, "(show-model)\n")
-    close(io)
-    P = open(`yices --logic=QF_NRA $path`)
+    mktemp() do path, io
+        write_yices(io, s)
 
-    if timeout < 0
-        wait(P)
-    else
-        timedwait(()->!process_running(P), float(timeout))
-        if process_running(P)
-            @debug "Kill yices"
-            kill(P)
-            close(P.in)
-            return NLSat.timeout, nothing
-        end
-    end
-
-    if success(P)
-        lines = readlines(P)
-        status = popfirst!(lines)
-        if status == "sat"
+        openproc(`yices --logic=QF_NRA $path`, timeout=timeout) do lines
             d = Dict{Symbol,Number}()
             for l in lines
                 ll = l[4:end-1]
@@ -127,20 +142,57 @@ function solve(s::YicesSolver; timeout::Int = -1)
                 val = parse(Int, y)
                 push!(d, sym=>val)
             end
-            return NLSat.sat, d
-        elseif status == "unsat"
-            return NLSat.unsat, nothing
+            d
         end
 
-        @error("unknown yices status: $status")
-    end
+        # P = open(`yices --logic=QF_NRA $path`)
 
-    NLSat.unknown, nothing
+        # if timeout < 0
+        #     wait(P)
+        # else
+        #     timedwait(()->!process_running(P), float(timeout))
+        #     if process_running(P)
+        #         @debug "Kill yices"
+        #         kill(P)
+        #         close(P.in)
+        #         return NLSat.timeout, nothing
+        #     end
+        # end
+
+        # P = openproc(`yices --logic=QF_NRA $path`, timeout=timeout)
+        # if P.termsignal != 0
+        #     return NLSat.timeout, nothing
+        # end
+        # if success(P)
+        #     lines = readlines(P)
+        #     status = popfirst!(lines)
+        #     if status == "sat"
+        #         d = Dict{Symbol,Number}()
+        #         for l in lines
+        #             ll = l[4:end-1]
+        #             (x,y) = split(ll, limit=2)
+        #             sym = Symbol(x)
+        #             val = parse(Int, y)
+        #             push!(d, sym=>val)
+        #         end
+        #         return NLSat.sat, d
+        #     elseif status == "unsat"
+        #         return NLSat.unsat, nothing
+        #     end
+
+        #     @error("unknown yices status: $status")
+        # end
+
+        # NLSat.unknown, nothing
+    end
 end
 
 function write_yices(io::IO, s::YicesSolver)
     writedlm(io, ["(define $v::real)" for v in keys(s.vars)])
     writedlm(io, ["(assert $x)" for x in s.input])
+    write(io, "(check)\n")
+    write(io, "(show-model)\n")
+    close(io)
 end
 
 # ------------------------------------------------------------------------------
@@ -202,35 +254,71 @@ function _check(s::Z3Solver)
 end
 
 function solve(s::Z3Solver; timeout::Int=-1)
-    @debug "$(typeof(s)) only supports Integer solutions for now."
-    if timeout > 0
-        # Z3 expects milliseconds
-        s.ptr.set(timeout=timeout*1000)
-    end
-    res = _check(s)
-    if res == sat
-        m = s.ptr.model()
-        d = Dict{Symbol,Number}()
-        for v in m
-            sym = Symbol(string(v.name()))
-            pyobj = m.__getitem__(v)
-            vtype = typename(pyobj)
-            if vtype == "IntNumRef"
-                val = convert(Int, pyobj.as_long())
-            elseif vtype == "RatNumRef"
-                num = pyobj.numerator_as_long()
-                den = pyobj.denominator_as_long()
-                val = Rational(num, den)
-            elseif vtype == "AlgebraicNumRef"
-                val = parse(Float32, pyobj.as_decimal(10)[1:end-1])
-            else
-                @error "FIX NEEDED: unhandled type" vtype
+    mktemp() do path, io
+        write(io, s.ptr.to_smt2())
+        write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
+        close(io)
+
+        openproc(`z3 $path`, timeout=timeout) do lines
+            d = Dict{Symbol,Number}()
+            parser = smtparser.SmtLibParser()
+            ls = parser.get_assignment_list(pyio.StringIO(join(lines)))
+            for (var,val) in ls
+                cval = val.constant_value()
+                svar = Symbol(string(var))
+                if val.is_int_constant()
+                    push!(d, svar=>convert(Int, cval))
+                elseif val.is_real_constant()
+                    if typename(cval) == "mpq"
+                        num = parse(Int, cval.numerator.digits()) 
+                        den = parse(Int, cval.denominator.digits())
+                        push!(d, svar=>Rational(num,den))
+                    else
+                        push!(d, svar=>convert(Float64, cval))
+                    end
+                elseif val.is_algebraic_constant()
+                    # TODO
+                    @warn "TODO: algebraic"
+                else
+                    @warn "Unknown data type of $((var,val))"
+                end
             end
-            push!(d, sym => val)
+            d
         end
-        return res, d
     end
-    res, nothing
+
+    # @debug "$(typeof(s)) only supports Integer solutions for now."
+    # if timeout > 0
+    #     # Z3 expects milliseconds
+    #     s.ptr.set(timeout=timeout*1000)
+    #     @info "timeout set"
+    # end
+    # res = _check(s)
+    # if res == sat
+    #     m = s.ptr.model()
+    #     d = Dict{Symbol,Number}()
+    #     for v in m
+    #         sym = Symbol(string(v.name()))
+    #         pyobj = m.__getitem__(v)
+    #         vtype = typename(pyobj)
+    #         if vtype == "IntNumRef"
+    #             val = convert(Int, pyobj.as_long())
+    #         elseif vtype == "RatNumRef"
+    #             num = pyobj.numerator_as_long()
+    #             den = pyobj.denominator_as_long()
+    #             val = Rational(num, den)
+    #         elseif vtype == "AlgebraicNumRef"
+    #             val = parse(Float32, pyobj.as_decimal(10)[1:end-1])
+    #         else
+    #             @error "FIX NEEDED: unhandled type" vtype
+    #         end
+    #         push!(d, sym => val)
+    #     end
+    #     @info "sat"
+    #     return res, d
+    # end
+    # @info "unsat"
+    # res, nothing
 end
 
 typename(x::PyObject) = x.__class__.__name__
