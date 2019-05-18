@@ -144,46 +144,6 @@ function solve(s::YicesSolver; timeout::Int = -1)
             end
             d
         end
-
-        # P = open(`yices --logic=QF_NRA $path`)
-
-        # if timeout < 0
-        #     wait(P)
-        # else
-        #     timedwait(()->!process_running(P), float(timeout))
-        #     if process_running(P)
-        #         @debug "Kill yices"
-        #         kill(P)
-        #         close(P.in)
-        #         return NLSat.timeout, nothing
-        #     end
-        # end
-
-        # P = openproc(`yices --logic=QF_NRA $path`, timeout=timeout)
-        # if P.termsignal != 0
-        #     return NLSat.timeout, nothing
-        # end
-        # if success(P)
-        #     lines = readlines(P)
-        #     status = popfirst!(lines)
-        #     if status == "sat"
-        #         d = Dict{Symbol,Number}()
-        #         for l in lines
-        #             ll = l[4:end-1]
-        #             (x,y) = split(ll, limit=2)
-        #             sym = Symbol(x)
-        #             val = parse(Int, y)
-        #             push!(d, sym=>val)
-        #         end
-        #         return NLSat.sat, d
-        #     elseif status == "unsat"
-        #         return NLSat.unsat, nothing
-        #     end
-
-        #     @error("unknown yices status: $status")
-        # end
-
-        # NLSat.unknown, nothing
     end
 end
 
@@ -283,42 +243,9 @@ function solve(s::Z3Solver; timeout::Int=-1)
                     @warn "Unknown data type of $((var,val))"
                 end
             end
-            d
+            return d
         end
     end
-
-    # @debug "$(typeof(s)) only supports Integer solutions for now."
-    # if timeout > 0
-    #     # Z3 expects milliseconds
-    #     s.ptr.set(timeout=timeout*1000)
-    #     @info "timeout set"
-    # end
-    # res = _check(s)
-    # if res == sat
-    #     m = s.ptr.model()
-    #     d = Dict{Symbol,Number}()
-    #     for v in m
-    #         sym = Symbol(string(v.name()))
-    #         pyobj = m.__getitem__(v)
-    #         vtype = typename(pyobj)
-    #         if vtype == "IntNumRef"
-    #             val = convert(Int, pyobj.as_long())
-    #         elseif vtype == "RatNumRef"
-    #             num = pyobj.numerator_as_long()
-    #             den = pyobj.denominator_as_long()
-    #             val = Rational(num, den)
-    #         elseif vtype == "AlgebraicNumRef"
-    #             val = parse(Float32, pyobj.as_decimal(10)[1:end-1])
-    #         else
-    #             @error "FIX NEEDED: unhandled type" vtype
-    #         end
-    #         push!(d, sym => val)
-    #     end
-    #     @info "sat"
-    #     return res, d
-    # end
-    # @info "unsat"
-    # res, nothing
 end
 
 typename(x::PyObject) = x.__class__.__name__
