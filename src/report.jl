@@ -3,15 +3,17 @@ using ProgressMeter
 
 const InvSet = Vector{Expr}
 
-function report(polys::Vector{InvSet}; solvers=[Yices,Z3], timeout=2, maxsol=3)
-    prog = Progress(length(polys)*length(solvers)*maxsol)
-    df = DataFrame(Solver = Type{<:NLSolver}[], Polys = Vector{Basic}[], Roots = Vector{Int}[], Loop = Union{Loop,NLStatus}[])
+function report(polys::Vector{InvSet}; solvers=[Yices,Z3], timeout=2, maxsol=3, shapes=[:F, :T, :U])
+    prog = Progress(length(polys)*length(solvers)*maxsol*length(shapes))
+    df = DataFrame(Solver = Type{<:NLSolver}[], Polys = Vector{Basic}[], Shape = Symbol[], Roots = Vector{Int}[], Loop = Union{Loop,NLStatus}[])
     for solver in solvers
         for invset in polys
-            solutions = synth(solver, invset, timeout, maxsol)
-            for s in solutions
-                push!(df, (s.info.solver, s.info.polys, s.info.roots, s.result))
-                next!(prog)
+            for shape in shapes
+                solutions = synth(invset, solver=solver, timeout=timeout, maxsol=maxsol, shape=shape)
+                for s in solutions
+                    push!(df, (s.info.solver, s.info.polys, s.info.shape, s.info.roots, s.result))
+                    next!(prog)
+                end
             end
         end
     end

@@ -15,6 +15,8 @@ const Z3 = Z3Solver
 
 export YicesSolver, Z3Solver, Yices, Z3
 
+isconstant(x::Basic) = isempty(SymEngine.free_symbols(x))
+
 include("constraints.jl")
 include("synthesizer.jl")
 include("show.jl")

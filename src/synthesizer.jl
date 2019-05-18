@@ -45,7 +45,7 @@ iterate(it::Solutions) = iterate(it, 0)
 function iterate(it::Solutions, state)
     it.status, model = NLSat.solve(it.solver, timeout=it.info.timeout)
     if it.status == NLSat.sat
-        body = [model[Symbol(string(b))] for b in it.info.body]
+        body = [isconstant(b) ? b : model[Symbol(string(b))] for b in it.info.body]
         init = [model[Symbol(string(b))] for b in initvec(size(it.info.body, 1))]
         return SynthResult(Loop(init, body), it.info), state+1
     end
@@ -100,8 +100,8 @@ synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
 
 # ------------------------------------------------------------------------------
 
-synth(t::Type{T}, polys::Vector{Expr}, timeout::Int, maxsol::Int) where {T<:NLSolver} =
-    MultiSynthesizer(Synthesizer(t, polys, :F, timeout), maxsol)
+synth(polys::Vector{Expr}; solver::Type{T}, timeout::Int, maxsol::Int, shape::Symbol) where {T<:NLSolver} =
+    MultiSynthesizer(Synthesizer(T, polys, shape, timeout), maxsol)
 
 struct MultiSynthesizer{T<:NLSolver}
     synth::Synthesizer{T}

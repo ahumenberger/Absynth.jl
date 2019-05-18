@@ -132,7 +132,6 @@ function solve(s::YicesSolver; timeout::Int = -1)
 
     mktemp() do path, io
         write_yices(io, s)
-
         openproc(`yices --logic=QF_NRA $path`, timeout=timeout) do lines
             d = Dict{Symbol,Number}()
             for l in lines
@@ -178,7 +177,8 @@ function variables!(s::Z3Solver, d::Dict{Symbol,Type})
     s.vars
 end
 
-function _constraint!(s::Z3Solver, c::PyObject)
+function _constraint!(s::Z3Solver, c::Union{PyObject,Bool})
+    # TODO: do not accept boolean vars
     s.ptr.add(c)
     push!(s.cstr, c)
     c

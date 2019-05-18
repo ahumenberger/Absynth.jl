@@ -36,7 +36,7 @@ function dynamicsmatrix(size::Int, shape::Symbol)
     elseif shape == :U
         # upper triangular
         B = [j>=i ? T("b$i$j") : zero(T) for i in 1:size, j in 1:size]
-    elseif shape == :UT
+    elseif shape == :T
         # unitriangular
         B = [j>i ? T("b$i$j") : i==j ? one(T) : zero(T) for i in 1:size, j in 1:size]
     end
@@ -113,7 +113,9 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     vars = [cs; rs]
     varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
     for b in [bs; initvec(size(B, 1))]
-        push!(varmap, Symbol(string(b))=>AlgebraicNumber)
+        if !isconstant(b)
+            push!(varmap, Symbol(string(b))=>AlgebraicNumber)
+        end
     end
     @debug "Variables" varmap
 
