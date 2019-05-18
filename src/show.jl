@@ -20,18 +20,18 @@ end
 # end
 
 function Base.show(io::IO, l::Loop)
-    compact = get(io, :compact, false)
+    # compact = get(io, :compact, false)
 
-    if compact
+    # if compact
         show(io, l.body)
-    else
-        print(io, """
-        $(to_list(l.info.vars)) = $(to_list(l.init))
-        while true
-            $(to_list(l.info.vars)) = $(to_list(l.body*l.info.vars))
-        end
-        """)
-    end
+    # else
+        # print(io, """
+        # $(to_list(l.info.vars)) = $(to_list(l.init))
+        # while true
+        #     $(to_list(l.info.vars)) = $(to_list(l.body*l.info.vars))
+        # end
+        # """)
+    # end
 end
 
 function Base.show(io::IO, ::MIME"text/plain", m::Loop)

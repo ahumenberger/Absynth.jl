@@ -22,7 +22,7 @@ include("synthesizer.jl")
 include("show.jl")
 include("report.jl")
 
-export synth, report
+export synth, report, rerun
 
 # ------------------------------------------------------------------------------
 

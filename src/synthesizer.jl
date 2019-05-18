@@ -64,14 +64,13 @@ struct Synthesizer{T<:NLSolver}
     shape::Symbol
     timeout::Int # seconds
 
-    function Synthesizer(::Type{T}, polys::Vector{Expr}, shape::Symbol, timeout::Int) where {T<:NLSolver}
-        ps = map(Basic, polys)
-        fs = SymEngine.free_symbols(ps)
+    function Synthesizer(::Type{T}, polys::Vector{Basic}, shape::Symbol, timeout::Int) where {T<:NLSolver}
+        fs = SymEngine.free_symbols(polys)
         filter!(!isinitvar, fs)
     
         dims = length(fs)
         body = dynamicsmatrix(dims, shape)
-        new{T}(body, ps, partitions(dims), fs, shape, timeout)
+        new{T}(body, polys, partitions(dims), fs, shape, timeout)
     end
 end
 
@@ -100,7 +99,9 @@ synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
 
 # ------------------------------------------------------------------------------
 
-synth(polys::Vector{Expr}; solver::Type{T}, timeout::Int, maxsol::Int, shape::Symbol) where {T<:NLSolver} =
+synth(polys::Vector{Expr}; kwargs) = synth(map(Basic, polys), kwargs...)
+
+synth(polys::Vector{Basic}; solver::Type{T}, timeout::Int, maxsol::Int, shape::Symbol) where {T<:NLSolver} =
     MultiSynthesizer(Synthesizer(T, polys, shape, timeout), maxsol)
 
 struct MultiSynthesizer{T<:NLSolver}

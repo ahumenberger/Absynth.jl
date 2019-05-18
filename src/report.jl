@@ -20,3 +20,11 @@ function report(polys::Vector{InvSet}; solvers=[Yices,Z3], timeout=2, maxsol=3, 
     finish!(prog)
     df
 end
+
+function rerun(df::DataFrame, row::Int; timeout=2, maxsol=1)
+    r = df[row, :]
+    solutions = synth(r.Polys, solver=r.Solver, timeout=timeout, maxsol=maxsol, shape=r.Shape)
+    for s in solutions
+        display(s)
+    end
+end
