@@ -7,6 +7,7 @@ export variables!, constraints!, solve
 using PyCall
 using DelimitedFiles
 using Distributed
+using MacroTools
 
 # Load Python libraries
 const pyio = PyNULL()
@@ -97,6 +98,7 @@ function prefix(x::Expr)
     s = replace(s, "," => "")
     s = replace(s, "(==)" => "=")
     s = replace(s, "!=" => "distinct")
+    s = replace(s, "||" => "or")
     s
 end
 
@@ -190,6 +192,7 @@ function constraints!(s::Z3Solver, cstr::Vector{Expr})
         for (svar, z3var) in s.vars
             push!(ls, Expr(:(=), svar, z3var))
         end
+        c = MacroTools.postwalk(x -> @capture(x, a_ || b_) ? :(z3.Or($a, $b)) : x, c)
         expr = Expr(:block, ls..., c)
         z3cstr = eval(expr)
         _constraint!(s, z3cstr)
