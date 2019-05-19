@@ -84,9 +84,11 @@ function next(s::Synthesizer{T}, next) where {T}
     if next !== nothing
         (ms, state) = next
         varmap, cstr = constraints(s.body, s.polys, ms)
+        cstropt = constraints_opt(s.body)
         solver = T()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
+        NLSat.constraints!(solver, cstropt)
         info = SynthInfo(T, s.vars, s.polys, ms, s.shape, s.body, s.timeout)
         return Solutions(solver, info), state
     end
@@ -99,7 +101,7 @@ synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
 
 # ------------------------------------------------------------------------------
 
-synth(polys::Vector{Expr}; kwargs) = synth(map(Basic, polys), kwargs...)
+synth(polys::Vector{Expr}; kwargs...) = synth(map(Basic, polys); kwargs...)
 
 synth(polys::Vector{Basic}; solver::Type{T}, timeout::Int, maxsol::Int, shape::Symbol) where {T<:NLSolver} =
     MultiSynthesizer(Synthesizer(T, polys, shape, timeout), maxsol)

@@ -80,6 +80,14 @@ to_expr(xs::Vector{Basic}) = map(x->convert(Expr, x), xs)
 
 eq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(==), convert(Expr, x), convert(Expr, y))
 ineq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(!=), convert(Expr, x), convert(Expr, y))
+function or(xs::Expr...)
+    if length(xs) == 1
+        return xs[1]
+    elseif length(xs) == 2
+        return Expr(:(||), xs[1], xs[2])
+    end
+    return Expr(:(||), xs[1], or(xs[2:end]...))
+end
 
 gensym_unhashed(s::Symbol) = Symbol(replace(string(gensym(s)), "#"=>""))
 
@@ -103,10 +111,9 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     @debug "Equality constraints" cscforms csinit csroots csrel
 
     # Inequality constraints
-    csnonconst = cstr_nonconstant(B)
     csdistinct = cstr_distinct(rs)
-    inequalities = [csnonconst; csdistinct]
-    @debug "Inequality constraints" csnonconst csdistinct
+    inequalities = csdistinct
+    @debug "Inequality constraints" csdistinct
 
     cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
     bs = Iterators.flatten(B) |> collect
@@ -125,6 +132,11 @@ end
 function constraints(B::Matrix{Basic}, inv::Vector{Basic}, ms::Vector{Int})
     varmap, equalities, inequalities = raw_constraints(B, inv, ms)
     varmap, [map(eq, equalities); map(ineq, inequalities)]
+end
+
+function constraints_opt(B::Matrix{Basic})
+    cstr = map(ineq, cstr_nonconstant(B))
+    [or(cstr...)]
 end
 
 function ideal(B::Matrix{Basic}, inv::Vector{Basic}, ms::Vector{Int})
