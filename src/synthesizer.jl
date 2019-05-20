@@ -31,6 +31,8 @@ struct SynthResult
     info::SynthInfo
 end
 
+const Model = Dict{Symbol,Number}
+
 # ------------------------------------------------------------------------------
 
 mutable struct Solutions
@@ -49,9 +51,15 @@ function iterate(it::Solutions, state)
     if it.status == NLSat.sat
         body = [isconstant(b) ? b : model[Symbol(string(b))] for b in it.info.body]
         init = [model[Symbol(string(b))] for b in initvec(size(it.info.body, 1))]
+        next_constraints!(it.solver, model)
         return SynthResult(Loop(init, body), it.elapsed, it.info), state+1
     end
     return nothing
+end
+
+function next_constraints!(s::NLSolver, m::Model)
+    cs = [:($var != $val) for (var, val) in m]
+    constraints!(s, [or(cs...)])
 end
 
 reason(s::Solutions) = SynthResult(s.status, s.elapsed, s.info)
