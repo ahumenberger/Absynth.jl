@@ -8,6 +8,7 @@ using PyCall
 using DelimitedFiles
 using Distributed
 using MacroTools
+using Dates
 
 # Load Python libraries
 const pyio = PyNULL()
@@ -62,6 +63,7 @@ function solve(s::NLSolver; timeout::Int = -1) end
 # ------------------------------------------------------------------------------
 
 function openproc(parse::Function, cmd::Cmd; timeout=-1)
+    start = time_ns()
     P = open(cmd)
     if timeout < 0
         wait(P)
@@ -71,22 +73,23 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
             @debug "Kill"
             kill(P)
             close(P.in)
-            return NLSat.timeout, nothing
+            return NLSat.timeout, Second(timeout), nothing
         end
     end
+    elapsed = Millisecond(round((time_ns()-start)/1e6))
     if success(P)
         lines = readlines(P)
         status = popfirst!(lines)
         if status == "sat"
             d = parse(lines)
-            return NLSat.sat, d
+            return NLSat.sat, elapsed, d
         elseif status == "unsat"
-            return NLSat.unsat, nothing
+            return NLSat.unsat, elapsed, nothing
         end
 
         @error("Unknown status: $status")
     end
-    return NLSat.unknown, nothing
+    return NLSat.unknown, elapsed, nothing
 end
 
 # ------------------------------------------------------------------------------

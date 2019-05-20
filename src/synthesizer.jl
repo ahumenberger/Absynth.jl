@@ -27,6 +27,7 @@ end
 
 struct SynthResult
     result::Union{Loop,NLStatus}
+    elapsed::TimePeriod
     info::SynthInfo
 end
 
@@ -35,24 +36,25 @@ end
 mutable struct Solutions
     solver::NLSolver
     status::NLStatus
+    elapsed::TimePeriod
     info::SynthInfo
 
-    Solutions(s::NLSolver, info::SynthInfo) = new(s, NLSat.sat, info)
+    Solutions(s::NLSolver, info::SynthInfo) = new(s, NLSat.sat, Millisecond(0), info)
 end
 
 iterate(it::Solutions) = iterate(it, 0)
 
 function iterate(it::Solutions, state)
-    it.status, model = NLSat.solve(it.solver, timeout=it.info.timeout)
+    it.status, it.elapsed, model = NLSat.solve(it.solver, timeout=it.info.timeout)
     if it.status == NLSat.sat
         body = [isconstant(b) ? b : model[Symbol(string(b))] for b in it.info.body]
         init = [model[Symbol(string(b))] for b in initvec(size(it.info.body, 1))]
-        return SynthResult(Loop(init, body), it.info), state+1
+        return SynthResult(Loop(init, body), it.elapsed, it.info), state+1
     end
     return nothing
 end
 
-reason(s::Solutions) = SynthResult(s.status, s.info)
+reason(s::Solutions) = SynthResult(s.status, s.elapsed, s.info)
 
 # ------------------------------------------------------------------------------
 
