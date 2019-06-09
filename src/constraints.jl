@@ -73,6 +73,12 @@ end
 
 initvar(s::T) where {T<:Union{Symbol,Basic}} = T("$(string(s))00")
 isinitvar(s::Union{Symbol,Basic}) = endswith(string(s), "00")
+basevar(s::Union{Symbol,Basic}) = isinitvar(s) ? Basic(string(s)[1:end-2]) : s
+
+function filtervars(fs::Vector{Basic})
+    init = filter(isinitvar, fs)
+    init, map(basevar, fs)
+end
 
 # ------------------------------------------------------------------------------
 
@@ -97,16 +103,18 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     t = length(ms)
     rs = symroot(t)
     lc = Basic("n")
-    cfs = cforms(size(B, 1), rs, ms, lc, one(Basic))
     fs = SymEngine.free_symbols(invs)
-    d = Dict(zip(fs, cfs))
+    params, vars = filtervars(fs)
+    @debug "Free symbols" params vars B
+    cfs = cforms(size(B, 1), rs, ms, lc=lc, exp=one(Basic), params=params)
+    d = Dict(zip(vars, cfs))
     ps = [SymEngine.subs(p, d...) for p in invs]
 
     # Equality constraints
-    cscforms = cstr_cforms(B, rs, ms)
-    csinit = cstr_init(B, rs, ms)
+    cscforms = cstr_cforms(B, rs, ms, params)
+    csinit = cstr_init(B, rs, ms, params)
     csroots = cstr_roots(B, rs)
-    csrel = [cstr_algrel(p, rs, lc) for p in ps]
+    csrel = [cstr_algrel(p, rs, lc, params) for p in ps]
     equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; collect(Iterators.flatten(csrel))]
     @debug "Equality constraints" cscforms csinit csroots csrel
 
@@ -115,7 +123,9 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     inequalities = csdistinct
     @debug "Inequality constraints" csdistinct
 
-    cs = Iterators.flatten(symconst(i, j, size(B, 1)) for i in 1:t for j in 1:ms[i]) |> collect
+    cs = Iterators.flatten(symconst(i, j, size(B, 1), params=params) for i in 1:t for j in 1:ms[i]) |> collect
+    cs = SymEngine.free_symbols(cs)
+    cs = setdiff(cs, params)
     bs = Iterators.flatten(B) |> collect
     vars = [cs; rs]
     varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
@@ -155,30 +165,45 @@ end
 
 # ------------------------------------------------------------------------------
 
-function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}, lc::Basic, exp::Basic=lc)
+function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}; lc::Basic, exp::Basic, params::Vector{Basic})
     t = length(rs)
-    sum(symconst(i, j, varcnt) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
+    sum(symconst(i, j, varcnt, params=params) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
 initvec(n::Int) = [Basic("v$i") for i in 1:n]
-symconst(i::Int, j::Int, rows::Int) = reshape([Basic("c$i$j$k") for k in 1:rows], rows, 1)
+function symconst(i::Int, j::Int, rows::Int; params::Vector{Basic})
+    nparams = length(params)
+    if iszero(nparams)
+        params = [one(Basic)]
+        nparams = 1
+    end
+    C = [Basic("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
+    C * params
+end
 symroot(n::Int) = [Basic("w$i") for i in 1:n]
 
 # ------------------------------------------------------------------------------
 
 "Generate constraints describing the relationship between entries of B and the closed forms."
-function cstr_cforms(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int})
+function cstr_cforms(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int}, params::Vector{Basic})
     rows = size(B, 1)
     t = length(rs)
-    [sum(binomial(k-1, j-1) * symconst(i, k, rows) * rs[i] for k in j:ms[i]) - B * symconst(i, j, rows) for i in 1:t for j in 1:ms[i]]
+    Ds = [sum(binomial(k-1, j-1) * symconst(i, k, rows, params=params) * rs[i] for k in j:ms[i]) - B * symconst(i, j, rows, params=params) for i in 1:t for j in 1:ms[i]]
+    destructpoly(Iterators.flatten(Ds), params)
 end
 
 "Generate constraints defining the initial values."
-function cstr_init(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int})
+function cstr_init(B::Matrix{Basic}, rs::Vector{Basic}, ms::Vector{Int}, params::Vector{Basic})
     s = size(B, 1)
-    ivec = initvec(s)
-    cfs = cforms(s, rs, ms, zero(Basic))
-    [v - c for (v, c) in zip(ivec, cfs)]
+    d = sum(ms)
+    A = initvec(s)
+    cstr = Basic[]
+    for i in 0:d-1
+        M = cforms(s, rs, ms, lc=Basic(i), exp=Basic(i), params=params)
+        X = B^i*A
+        append!(cstr, X - M)
+    end
+    destructpoly(cstr, params)
 end
 
 "Generate constraints ensuring that sequence is not constant, i.e. B*B*x0 != B*x0."
@@ -203,7 +228,7 @@ cstr_distinct(rs::Vector{Basic}) = [r1-r2 for (r1,r2) in combinations(rs, 2)]
 # ------------------------------------------------------------------------------
 
 "Generate constraints ensuring that p is an algebraic relation."
-function cstr_algrel(p::Basic, rs::Vector{Basic}, lc::Basic)
+function cstr_algrel(p::Basic, rs::Vector{Basic}, lc::Basic, params::Vector{Basic})
     qs = destructpoly(p, lc)
     cs = Basic[]
     for (i, q) in enumerate(qs)
@@ -215,14 +240,17 @@ function cstr_algrel(p::Basic, rs::Vector{Basic}, lc::Basic)
         c = [sum(m^j*u for (m,u) in zip(ms,us)) for j in 0:l-1]
         append!(cs, c)
     end
-    cs
+    destructpoly(cs, params)
 end
 
 # ------------------------------------------------------------------------------
 
-function destructpoly(p::Basic, lc::Basic)
-    coeffs(p, lc)
-end
+destructpoly(p::Basic, var::Basic) = coeffs(p, var)
+destructpoly(p::Basic, var::Basic, left::Basic...) = 
+    reduce(union, map(x->destructpoly(x, left...), coeffs(p, var)))
+
+destructpoly(ps, vars::Vector{Basic}) =
+    isempty(vars) ? ps : reduce(union, map(x->destructpoly(x, vars...), ps))
 
 function destructterm(p::Basic, rs::Vector{Basic})
     ms = Basic[]

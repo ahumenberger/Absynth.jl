@@ -3,7 +3,7 @@ to_assignments(xs::Vector, ys::Vector) = ["$x = $y" for (x,y) in zip(xs,ys)]
 to_lines(xs::Vector{String}, indent::Int) = join(xs, "\n$(repeat("    ", indent))")
 to_list(xs) = join(xs, ", ")
 
-Base.show(io::IO, s::NLStatus) = print(io, lowercase(string(s)))
+# Base.show(io::IO, s::NLStatus) = print(io, lowercase(string(s)))
 
 function Base.show(io::IO, l::Loop)
     compact = get(io, :compact, false)
@@ -36,4 +36,15 @@ function mergestr(strings::String...)
     cols = length(splits)
     matr = reshape(collect(Iterators.flatten(splits)), rows, cols)
     join([join(matr[i,:]) for i in 1:size(matr, 1)], "\n")
+end
+
+function Base.show(io::IO, s::SynthResult)
+    compact = get(io, :compact, false)
+
+    if typeof(s.result) == Loop
+        println(io, "Synthesis in $(s.elapsed):")
+        show(io, s.result)
+    else
+        print(io, "No loop found: $(s.result)")
+    end
 end

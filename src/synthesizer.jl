@@ -76,7 +76,7 @@ struct Synthesizer{T<:NLSolver}
 
     function Synthesizer(::Type{T}, polys::Vector{Basic}, shape::Symbol, timeout::Int) where {T<:NLSolver}
         fs = SymEngine.free_symbols(polys)
-        filter!(!isinitvar, fs)
+        init, fs = filtervars(fs)
     
         dims = length(fs)
         body = dynamicsmatrix(dims, shape)
@@ -98,7 +98,7 @@ function next(s::Synthesizer{T}, next) where {T}
         solver = T()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
-        NLSat.constraints!(solver, cstropt)
+        # NLSat.constraints!(solver, cstropt)
         info = SynthInfo(T, s.vars, s.polys, ms, s.shape, s.body, s.timeout)
         return Solutions(solver, info), state
     end
