@@ -38,13 +38,72 @@ function mergestr(strings::String...)
     join([join(matr[i,:]) for i in 1:size(matr, 1)], "\n")
 end
 
-function Base.show(io::IO, s::SynthResult)
+function Base.summary(io::IO, s::SynthResult) where {T}
+    compact = get(io, :compact, false)
+    res = typeof(s.result) == Loop ? NLSat.sat : s.result
+    if compact
+        print(io, "SynthResult ($(res))")
+    else
+        print(io, "SynthResult ($(res)) in $(s.elapsed)")
+    end
+end
+
+Base.show(io::IO, s::SynthResult) = summary(io, s)
+
+function Base.show(io::IO, ::MIME"text/plain", s::SynthResult)
+    summary(io, s)
+    if typeof(s.result) == Loop
+        println(io, ":")
+        show(io, s.result)
+    end
+end
+
+Base.show(io::IO, ::MIME"text/plain", ::Iterators.Stateful{Absynth.MultiSynthesizer{<:NLSolver}, Any}) = 
+    print(io, "Stateful Synthesizer")
+
+
+Base.summary(io::IO, s::Synthesizer{T}) where {T} =
+    print(io, "Synthesizer for $(s.polys)")
+# Base.summary(io::IO, s::MultiSynthesizer{T}) where {T} =
+#     print(io, "Synthesizer for $(s.synth.polys) and at most $(s.maxsol) solutions")
+
+function Base.show(io::IO, s::Synthesizer{T}) where {T}
     compact = get(io, :compact, false)
 
-    if typeof(s.result) == Loop
-        println(io, "Synthesis in $(s.elapsed):")
-        show(io, s.result)
-    else
-        print(io, "No loop found: $(s.result)")
+    print(io, "Synthesizer for $(s.polys)")
+    if !compact
+        println(io, " with options:")
+        println(io, "Solver\t: $(T)")
+        println(io, "Vars\t: $(s.vars)")
+        println(io, "Shape\t: $(s.shape)")
+        println(io, "Timeout\t: $(s.timeout) s")
     end
+end
+
+function Base.show(io::IO, s::MultiSynthesizer{T}) where {T}
+    compact = get(io, :compact, false)
+
+    summary(io, s)
+
+    # if compact
+    #     println(io, " and at most $(s.maxsol) solutions")
+    # else
+    #     println(io, "Maxsol\t: $(s.maxsol)")
+    # end
+end
+
+Base.show(io::IO, s::NLSolver) = println(io, typeof(s))
+
+function splitformula(expr)
+    if @capture(expr, e1_ && e2_)
+        return [[e1]; splitformula(e2)]
+    end
+    return [expr]
+end
+
+export @synth
+
+macro synth(ps, kwargs...)
+    args = [esc(a) for a in kwargs]
+    :(Iterators.Stateful(synth($(splitformula(ps)); $(args...))))
 end

@@ -113,7 +113,7 @@ synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
 
 synth(polys::Vector{Expr}; kwargs...) = synth(map(Basic, polys); kwargs...)
 
-synth(polys::Vector{Basic}; solver::Type{T}, timeout::Int, maxsol::Int, shape::Symbol) where {T<:NLSolver} =
+synth(polys::Vector{Basic}; solver::Type{T}=Yices, timeout::Int=10, maxsol::Int=1, shape::Symbol=:F) where {T<:NLSolver} =
     MultiSynthesizer(Synthesizer(T, polys, shape, timeout), maxsol)
 
 struct MultiSynthesizer{T<:NLSolver}
