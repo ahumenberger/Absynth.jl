@@ -20,6 +20,7 @@ include("constraints.jl")
 include("synthesizer.jl")
 include("show.jl")
 include("report.jl")
+include("utils.jl")
 
 export synth, report, rerun
 
