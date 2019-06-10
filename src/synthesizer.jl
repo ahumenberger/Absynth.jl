@@ -20,7 +20,7 @@ struct SynthInfo
     vars::Vector{Basic}
     polys::Vector{Basic}
     roots::Vector{Int}
-    shape::Symbol
+    shape::MatrixShape
     body::Matrix{Basic}
     timeout::Int
 end
@@ -72,10 +72,10 @@ struct Synthesizer{T<:NLSolver}
     roots::Combinatorics.IntegerPartitions # multiplicities of roots
     vars::Vector{Basic}
     params::Vector{Basic}
-    shape::Symbol
+    shape::MatrixShape
     timeout::Int # seconds
 
-    function Synthesizer(::Type{T}, polys::Vector{Basic}, vars::Vector{Basic}, shape::Symbol, timeout::Int) where {T<:NLSolver}
+    function Synthesizer(::Type{T}, polys::Vector{Basic}, vars::Vector{Basic}, shape::MatrixShape, timeout::Int) where {T<:NLSolver}
         fs = SymEngine.free_symbols(polys)
         init, fs = filtervars(fs)
         @assert issubset(fs, vars) "Variables in polys ($(fs)) not a subset of given variables ($(vars))"
@@ -113,7 +113,7 @@ synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
 
 # ------------------------------------------------------------------------------
 
-function synth(polys::Vector{P}; solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, shape::Symbol=:F, vars::Vector{V}=[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
+function synth(polys::Vector{P}; solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, shape::MatrixShape=full, vars::Vector{V}=[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
     polys = map(Basic, polys)
     vars = map(Basic, vars)
     fs = SymEngine.free_symbols(polys)

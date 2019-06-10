@@ -28,15 +28,17 @@ isconstant(x::Basic) = isempty(SymEngine.free_symbols(x))
 
 # ------------------------------------------------------------------------------
 
-function dynamicsmatrix(size::Int, shape::Symbol)
+@enum MatrixShape full upper uni
+
+function dynamicsmatrix(size::Int, shape::MatrixShape)
     T = Basic
-    if shape == :F
+    if shape == full
         # full
         B = [T("b$i$j") for i in 1:size, j in 1:size]
-    elseif shape == :U
+    elseif shape == upper
         # upper triangular
         B = [j>=i ? T("b$i$j") : zero(T) for i in 1:size, j in 1:size]
-    elseif shape == :T
+    elseif shape == uni
         # unitriangular
         B = [j>i ? T("b$i$j") : i==j ? one(T) : zero(T) for i in 1:size, j in 1:size]
     end
