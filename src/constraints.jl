@@ -145,7 +145,6 @@ function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}; lc::Basic, exp:
     sum(symconst(i, j, varcnt, params=params) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
-initvec(n::Int) = [Basic("v$i") for i in 1:n]
 function symconst(i::Int, j::Int, rows::Int; params::Vector{Basic})
     nparams = length(params) + 1
     params = [params; one(Basic)]
@@ -155,6 +154,7 @@ function symconst(i::Int, j::Int, rows::Int; params::Vector{Basic})
     C = [Basic("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
     C * params
 end
+
 symroot(n::Int) = [Basic("w$i") for i in 1:n]
 
 # ------------------------------------------------------------------------------
@@ -251,8 +251,6 @@ function destructterm(p::Basic, rs::Vector{Basic})
         push!(ms, m)
         push!(cs, c)
     end
-    # a, b = factor(ms, cs)
-    # @info "destruct term" length(a) length(ms)
     factor(ms, cs)
 end
 
