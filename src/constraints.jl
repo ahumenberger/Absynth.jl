@@ -45,34 +45,6 @@ function dynamicsmatrix(size::Int, shape::MatrixShape)
     B
 end
 
-# function synth(::Type{T}, invs::Vector{Expr}) where {T<:NLSolver}
-#     ps = map(Basic, invs)
-#     fs = SymEngine.free_symbols(ps)
-#     filter!(!isinitvar, fs)
-
-#     dims = length(fs)
-#     B = dynamicsmatrix(dims, :F)
-#     for ms in reverse(collect(partitions(dims)))
-#         @info "Multiplicities" ms
-#         varmap, cstr = constraints(B, ps, ms)
-#         # @info "" ideal(B, p, ms)
-
-#         solver = T()
-#         NLSat.variables!(solver, varmap)
-#         NLSat.constraints!(solver, cstr)
-#         status, model = NLSat.solve(solver)
-#         @info "NL result" status model
-#         if status == NLSat.sat
-#             sol = [model[Symbol(string(b))] for b in B]
-#             ivec = [model[Symbol(string(b))] for b in initvec(size(B, 1))]
-#             @info "Solution found for partitioning $ms" sol ivec
-#             return Loop(fs, ivec, sol)
-#         else
-#             @info "No solution found for partitioning $ms"
-#         end
-#     end
-# end
-
 initvar(s::T) where {T<:Union{Symbol,Basic}} = T("$(string(s))00")
 isinitvar(s::Union{Symbol,Basic}) = endswith(string(s), "00")
 basevar(s::Union{Symbol,Basic}) = isinitvar(s) ? Basic(string(s)[1:end-2]) : s
@@ -164,20 +136,6 @@ end
 function constraints_opt(ctx::SynthContext)
     cstr = map(ineq, cstr_nonconstant(ctx))
     [or(cstr...)]
-end
-
-function ideal(B::Matrix{Basic}, inv::Vector{Basic}, ms::Vector{Int})
-    varmap, equalities, inequalities = raw_constraints(B, inv, ms)
-    auxvars = [gensym_unhashed(:z) for _ in 1:length(inequalities)]
-    ineqs = [x*Basic(z) - 1 for (x,z) in zip(inequalities, auxvars)]
-    for v in auxvars
-        push!(varmap, v=>AlgebraicNumber)
-    end
-    R, _ = PolynomialRing(QQ, string.(keys(varmap)))
-    gens = spoly{Singular.n_Q}[R(convert(Expr, p)) for p in [equalities; ineqs]]
-    I = Ideal(R, gens)
-    gb = std(I)
-    varmap, [convert(Expr, x) for x in gb]
 end
 
 # ------------------------------------------------------------------------------
