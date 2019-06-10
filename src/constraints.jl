@@ -99,12 +99,12 @@ gensym_unhashed(s::Symbol) = Symbol(replace(string(gensym(s)), "#"=>""))
 
 # ------------------------------------------------------------------------------
 
-function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
+function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
     t = length(ms)
     rs = symroot(t)
     lc = Basic("n")
-    fs = SymEngine.free_symbols(invs)
-    params, vars = filtervars(fs)
+    # fs = SymEngine.free_symbols(invs)
+    # params, vars = filtervars(fs)
     @debug "Free symbols" params vars B
     cfs = cforms(size(B, 1), rs, ms, lc=lc, exp=one(Basic), params=params)
     d = Dict(zip(vars, cfs))
@@ -139,8 +139,8 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, ms::Vector{Int})
     varmap, equalities, inequalities
 end
 
-function constraints(B::Matrix{Basic}, inv::Vector{Basic}, ms::Vector{Int})
-    varmap, equalities, inequalities = raw_constraints(B, inv, ms)
+function constraints(B::Matrix{Basic}, inv::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
+    varmap, equalities, inequalities = raw_constraints(B, inv, vars, params, ms)
     varmap, [map(eq, equalities); map(ineq, inequalities)]
 end
 

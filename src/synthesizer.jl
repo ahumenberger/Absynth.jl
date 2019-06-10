@@ -71,16 +71,18 @@ struct Synthesizer{T<:NLSolver}
     polys::Vector{Basic}
     roots::Combinatorics.IntegerPartitions # multiplicities of roots
     vars::Vector{Basic}
+    params::Vector{Basic}
     shape::Symbol
     timeout::Int # seconds
 
-    function Synthesizer(::Type{T}, polys::Vector{Basic}, shape::Symbol, timeout::Int) where {T<:NLSolver}
+    function Synthesizer(::Type{T}, polys::Vector{Basic}, vars::Vector{Basic}, shape::Symbol, timeout::Int) where {T<:NLSolver}
         fs = SymEngine.free_symbols(polys)
         init, fs = filtervars(fs)
-    
-        dims = length(fs)
+        @assert issubset(fs, vars) "Variables in polys ($(fs)) not a subset of given variables ($(vars))"
+
+        dims = length(vars)
         body = dynamicsmatrix(dims, shape)
-        new{T}(body, polys, partitions(dims), fs, shape, timeout)
+        new{T}(body, polys, partitions(dims), vars, init, shape, timeout)
     end
 end
 
@@ -93,7 +95,7 @@ iterate(s::Synthesizer, state) = next(s, iterate(s.roots, state))
 function next(s::Synthesizer{T}, next) where {T}
     if next !== nothing
         (ms, state) = next
-        varmap, cstr = constraints(s.body, s.polys, ms)
+        varmap, cstr = constraints(s.body, s.polys, s.vars, s.params, ms)
         cstropt = constraints_opt(s.body)
         solver = T()
         NLSat.variables!(solver, varmap)
@@ -111,10 +113,16 @@ synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
 
 # ------------------------------------------------------------------------------
 
-synth(polys::Vector{Expr}; kwargs...) = synth(map(Basic, polys); kwargs...)
-
-synth(polys::Vector{Basic}; solver::Type{T}=Yices, timeout::Int=10, maxsol::Int=1, shape::Symbol=:F) where {T<:NLSolver} =
-    MultiSynthesizer(Synthesizer(T, polys, shape, timeout), maxsol)
+function synth(polys::Vector{P}; solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, shape::Symbol=:F, vars::Vector{V}=[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
+    polys = map(Basic, polys)
+    vars = map(Basic, vars)
+    fs = SymEngine.free_symbols(polys)
+    _, xvars = filtervars(fs)
+    if isempty(vars)
+        vars = xvars
+    end
+    MultiSynthesizer(Synthesizer(S, polys, vars, shape, timeout), maxsol)
+end
 
 struct MultiSynthesizer{T<:NLSolver}
     synth::Synthesizer{T}
