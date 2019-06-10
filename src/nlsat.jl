@@ -102,6 +102,7 @@ function prefix(x::Expr)
     s = replace(s, "(==)" => "=")
     s = replace(s, "!=" => "distinct")
     s = replace(s, "||" => "or")
+    s = replace(s, "//" => "/")
     s
 end
 
@@ -143,7 +144,7 @@ function solve(s::YicesSolver; timeout::Int = -1)
                 ll = l[4:end-1]
                 (x,y) = split(ll, limit=2)
                 sym = Symbol(x)
-                val = parse(Int, y)
+                val = parsenumber(y)
                 push!(d, sym=>val)
             end
             d
@@ -157,6 +158,17 @@ function write_yices(io::IO, s::YicesSolver)
     write(io, "(check)\n")
     write(io, "(show-model)\n")
     close(io)
+end
+
+function parsenumber(s::AbstractString)
+    T = Int
+    ls = split(string(s), '/', keepempty=false)
+    if length(ls) == 1
+        return parse(T, ls[1])
+    else
+        @assert length(ls) == 2
+        return parse(T, ls[1]) // parse(T, ls[2])
+    end
 end
 
 # ------------------------------------------------------------------------------
