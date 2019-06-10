@@ -98,11 +98,11 @@ function next(s::Synthesizer{T}, next) where {T}
         (ms, state) = next
         ctx = mkcontext(s.body, s.polys, s.vars, s.params, ms)
         varmap, cstr = constraints(ctx)
-        cstropt = constraints_opt(s.body)
+        cstropt = constraints_opt(ctx)
         solver = T()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
-        # NLSat.constraints!(solver, cstropt)
+        NLSat.constraints!(solver, cstropt)
         info = SynthInfo(T, ctx, s.shape, s.timeout)
         return Solutions(solver, info), state
     end

@@ -161,8 +161,8 @@ function constraints(ctx::SynthContext)
     varmap, [map(eq, equalities); map(ineq, inequalities)]
 end
 
-function constraints_opt(B::Matrix{Basic})
-    cstr = map(ineq, cstr_nonconstant(B))
+function constraints_opt(ctx::SynthContext)
+    cstr = map(ineq, cstr_nonconstant(ctx))
     [or(cstr...)]
 end
 
@@ -225,12 +225,6 @@ function cstr_init(ctx::SynthContext)
     destructpoly(cstr, ctx.params)
 end
 
-"Generate constraints ensuring that sequence is not constant, i.e. B*B*x0 != B*x0."
-function cstr_nonconstant(B::Matrix{Basic})
-    ivec = initvec(size(B, 1))
-    B * B * ivec - B * ivec
-end
-
 LinearAlgebra.det(m::Matrix{Basic}) = det(convert(SymEngine.CDenseMatrix, m))
 
 "Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
@@ -244,6 +238,15 @@ end
 
 "Generate constraints ensuring that the elements of rs are distinct."
 cstr_distinct(ctx::SynthContext) = [r1-r2 for (r1,r2) in combinations(ctx.roots, 2)]
+
+# ------------------------------------------------------------------------------
+
+"Generate constraints ensuring that sequence is not constant, i.e. B*B*x0 != B*x0."
+function cstr_nonconstant(ctx::SynthContext)
+    A, B = ctx.init, ctx.body
+    cs = B * B * A - B * A
+    destructpoly(cs, ctx.params)
+end
 
 # ------------------------------------------------------------------------------
 
