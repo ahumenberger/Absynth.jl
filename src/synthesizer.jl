@@ -64,10 +64,12 @@ reason(s::Solutions) = SynthResult(s.status, s.elapsed, s.info)
 
 # ------------------------------------------------------------------------------
 
+const Partitions = Union{Combinatorics.IntegerPartitions, Combinatorics.FixedPartitions}
+
 struct Synthesizer{T<:NLSolver}
     body::Matrix{Basic}
     polys::Vector{Basic}
-    roots::Combinatorics.IntegerPartitions # multiplicities of roots
+    roots::Partitions # multiplicities of roots
     vars::Vector{Basic}
     params::Vector{Basic}
     shape::MatrixShape
@@ -80,7 +82,12 @@ struct Synthesizer{T<:NLSolver}
 
         dims = length(vars)
         body = dynamicsmatrix(dims, shape)
-        new{T}(body, polys, partitions(dims), vars, init, shape, timeout)
+        if shape == uni
+            part = partitions(dims, 1)
+        else
+            part = partitions(dims)
+        end
+        new{T}(body, polys, part, vars, init, shape, timeout)
     end
 end
 
