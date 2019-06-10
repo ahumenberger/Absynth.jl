@@ -75,11 +75,7 @@ struct Synthesizer{T<:NLSolver}
     shape::MatrixShape
     timeout::Int # seconds
 
-    function Synthesizer(::Type{T}, polys::Vector{Basic}, vars::Vector{Basic}, shape::MatrixShape, timeout::Int) where {T<:NLSolver}
-        fs = SymEngine.free_symbols(polys)
-        init, fs = filtervars(fs)
-        @assert issubset(fs, vars) "Variables in polys ($(fs)) not a subset of given variables ($(vars))"
-
+    function Synthesizer(::Type{T}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, shape::MatrixShape, timeout::Int) where {T<:NLSolver}
         dims = length(vars)
         body = dynamicsmatrix(dims, shape)
         if shape == uni
@@ -87,7 +83,7 @@ struct Synthesizer{T<:NLSolver}
         else
             part = partitions(dims)
         end
-        new{T}(body, polys, part, vars, init, shape, timeout)
+        new{T}(body, polys, part, vars, params, shape, timeout)
     end
 end
 
@@ -113,22 +109,26 @@ function next(s::Synthesizer{T}, next) where {T}
     return nothing
 end
 
-synth(x::Expr) = synth(Yices, [x])
-synth(t::Type{T}, polys::Vector{Expr}) where {T<:NLSolver} =
-    Synthesizer(t, polys, :F)
-
 # ------------------------------------------------------------------------------
 
-function synth(polys::Vector{P}; solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, shape::MatrixShape=full, vars::Vector{V}=[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
-    polys = map(Basic, polys)
-    vars = map(Basic, vars)
+function synth(polys::Vector{P}; solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, shape::MatrixShape=full, vars::Vector{V}=Symbol[], params::Vector{V}=Symbol[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
+    polys  = map(Basic, polys)
+    vars   = map(Basic, vars)
+    params = map(Basic, params)
     fs = SymEngine.free_symbols(polys)
-    _, xvars = filtervars(fs)
+    xparams, xvars = filtervars(fs)
     if isempty(vars)
         vars = xvars
+    else
+        @assert issubset(xvars, vars) "Variables in polys ($(fs)) not a subset of given variables ($(vars))"
     end
-    MultiSynthesizer(Synthesizer(S, polys, vars, shape, timeout), maxsol)
+    if isempty(params)
+        params = xparams
+    end
+    MultiSynthesizer(Synthesizer(S, polys, vars, params, shape, timeout), maxsol)
 end
+
+# ------------------------------------------------------------------------------
 
 struct MultiSynthesizer{T<:NLSolver}
     synth::Synthesizer{T}
