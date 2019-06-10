@@ -79,7 +79,7 @@ basevar(s::Union{Symbol,Basic}) = isinitvar(s) ? Basic(string(s)[1:end-2]) : s
 
 function filtervars(fs::Vector{Basic})
     init = filter(isinitvar, fs)
-    init, map(basevar, fs)
+    init, unique(map(basevar, fs))
 end
 
 # ------------------------------------------------------------------------------
