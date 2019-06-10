@@ -17,11 +17,8 @@ values(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 
 struct SynthInfo
     solver::Type{<:NLSolver}
-    vars::Vector{Basic}
-    polys::Vector{Basic}
-    roots::Vector{Int}
+    ctx::SynthContext
     shape::MatrixShape
-    body::Matrix{Basic}
     timeout::Int
 end
 
@@ -49,8 +46,9 @@ iterate(it::Solutions) = iterate(it, 0)
 function iterate(it::Solutions, state)
     it.status, it.elapsed, model = NLSat.solve(it.solver, timeout=it.info.timeout)
     if it.status == NLSat.sat
-        body = [isconstant(b) ? b : model[Symbol(string(b))] for b in it.info.body]
-        init = [model[Symbol(string(b))] for b in initvec(size(it.info.body, 1))]
+        A, B = it.info.ctx.init, it.info.ctx.body
+        body = [get(model, Symbol(string(b)), b) for b in B]
+        init = [get(model, Symbol(string(b)), b) for b in A]
         next_constraints!(it.solver, model)
         return SynthResult(Loop(init, body), it.elapsed, it.info), state+1
     end
@@ -95,13 +93,14 @@ iterate(s::Synthesizer, state) = next(s, iterate(s.roots, state))
 function next(s::Synthesizer{T}, next) where {T}
     if next !== nothing
         (ms, state) = next
-        varmap, cstr = constraints(s.body, s.polys, s.vars, s.params, ms)
+        ctx = mkcontext(s.body, s.polys, s.vars, s.params, ms)
+        varmap, cstr = constraints(ctx)
         cstropt = constraints_opt(s.body)
         solver = T()
         NLSat.variables!(solver, varmap)
         NLSat.constraints!(solver, cstr)
         # NLSat.constraints!(solver, cstropt)
-        info = SynthInfo(T, s.vars, s.polys, ms, s.shape, s.body, s.timeout)
+        info = SynthInfo(T, ctx, s.shape, s.timeout)
         return Solutions(solver, info), state
     end
     return nothing

@@ -107,27 +107,19 @@ struct SynthContext
     params::Vector{Basic}
     roots::Vector{Basic}
     multi::Vector{Int}
-    # shape::MatrixShape
     body::Matrix{Basic}
     init::Vector{Basic}
     lc::Basic
 end
 
+function mkcontext(body::Matrix{Basic}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
+    rs, lc = symroot(length(ms)), Basic("n")
+    SynthContext(polys, vars, params, rs, ms, body, map(initvar, vars), lc)
+end
+
 # ------------------------------------------------------------------------------
 
-function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
-    t = length(ms)
-    rs = symroot(t)
-    lc = Basic("n")
-    # fs = SymEngine.free_symbols(invs)
-    # params, vars = filtervars(fs)
-    @debug "Free symbols" params vars B
-    # cfs = cforms(size(B, 1), rs, ms, lc=lc, exp=one(Basic), params=params)
-    # d = Dict(zip(vars, cfs))
-    # ps = [SymEngine.subs(p, d...) for p in invs]
-
-    ctx = SynthContext(invs, vars, params, rs, ms, B, map(initvar, vars), lc)
-
+function raw_constraints(ctx::SynthContext)
     # Equality constraints
     cscforms = cstr_cforms(ctx)
     csinit   = cstr_init(ctx)
@@ -141,15 +133,22 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, vars::Vector{Bas
     inequalities = csdistinct
     @debug "Inequality constraints" csdistinct
 
-    cs = Iterators.flatten(symconst(i, j, size(B, 1), params=params) for i in 1:t for j in 1:ms[i]) |> collect
+    rs, ms = ctx.roots, ctx.multi
+    t = length(ms)
+    cs = Iterators.flatten(symconst(i, j, size(ctx.body, 1), params=ctx.params) for i in 1:t for j in 1:ms[i]) |> collect
     cs = SymEngine.free_symbols(cs)
-    cs = setdiff(cs, params)
-    bs = Iterators.flatten(B) |> collect
+    cs = setdiff(cs, ctx.params)
+    bs = Iterators.flatten(ctx.body) |> collect
     vars = [cs; rs]
     varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
-    for b in [bs; initvec(size(B, 1))]
+    for b in bs
         if !isconstant(b)
             push!(varmap, Symbol(string(b))=>AlgebraicNumber)
+        end
+    end
+    for v in ctx.init
+        if !isconstant(v) && !(v in ctx.params)
+            push!(varmap, Symbol(string(v))=>AlgebraicNumber)
         end
     end
     @debug "Variables" varmap
@@ -157,8 +156,8 @@ function raw_constraints(B::Matrix{Basic}, invs::Vector{Basic}, vars::Vector{Bas
     varmap, equalities, inequalities
 end
 
-function constraints(B::Matrix{Basic}, inv::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
-    varmap, equalities, inequalities = raw_constraints(B, inv, vars, params, ms)
+function constraints(ctx::SynthContext)
+    varmap, equalities, inequalities = raw_constraints(ctx)
     varmap, [map(eq, equalities); map(ineq, inequalities)]
 end
 
@@ -192,13 +191,10 @@ initvec(n::Int) = [Basic("v$i") for i in 1:n]
 function symconst(i::Int, j::Int, rows::Int; params::Vector{Basic})
     nparams = length(params) + 1
     params = [params; one(Basic)]
-    # if iszero(nparams)
-        # params = [one(Basic)]
-        # nparams = 1
-    # end
-    s = collect('c':'z')[i*j]
-    C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
-    # C = [Basic("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
+
+    # s = collect('c':'z')[i*j]
+    # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
+    C = [Basic("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
     C * params
 end
 symroot(n::Int) = [Basic("w$i") for i in 1:n]
@@ -219,7 +215,7 @@ function cstr_init(ctx::SynthContext)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
     s = size(B, 1)
     d = sum(ms)
-    A = initvec(s)
+    A = ctx.init
     cstr = Basic[]
     for i in 0:d-1
         M = cforms(s, rs, ms, lc=Basic(i), exp=Basic(i), params=ctx.params)
