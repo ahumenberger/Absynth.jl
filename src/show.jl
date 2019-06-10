@@ -92,4 +92,4 @@ function Base.show(io::IO, s::MultiSynthesizer{T}) where {T}
     # end
 end
 
-Base.show(io::IO, s::NLSolver) = println(io, typeof(s))
+Base.show(io::IO, s::NLSolver) = print(io, typeof(s))
