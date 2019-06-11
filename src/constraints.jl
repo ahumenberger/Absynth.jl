@@ -139,7 +139,9 @@ function raw_constraints(ctx::SynthContext)
         sdict = Dict(Basic(v)=>subscript(v) for v in keys(varmap))
 
         function beautify(x)
+            # x = SymEngine.subs(x, Basic("t00")=>1, Basic("w1")=>1, Basic("q00")=>Basic("q_0"))
             x = SymEngine.subs(x, sdict...)
+            x = simplify(x)
             startswith(string(x), "-") ? simplify(-x) : x
         end
 
