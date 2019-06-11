@@ -64,7 +64,7 @@ function solve(s::NLSolver; timeout::Int = -1) end
 
 function openproc(parse::Function, cmd::Cmd; timeout=-1)
     start = time_ns()
-    P = open(cmd)
+    P = open(pipeline(cmd, stderr=devnull))
     if timeout < 0
         wait(P)
     else
