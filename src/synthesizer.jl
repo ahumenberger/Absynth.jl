@@ -70,7 +70,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-struct SynthiePop{T<:NLSolver}
+struct Synthesizer{T<:NLSolver}
     body::Matrix{Basic}
     polys::Vector{Basic}
     vars::Vector{Basic}
@@ -103,19 +103,19 @@ function synth(polys; kwargs...)
     perm_iter = perm ? permutations(vars) : [vars]
     iters = [Iterators.product(part_iter, perm_iter)]
 
-    SynthiePop{solver}(body, polys, vars, params, shape, maxsol, timeout, iters)
+    Synthesizer{solver}(body, polys, vars, params, shape, maxsol, timeout, iters)
 end
 
-# IteratorSize(::Type{SynthiePop}) = HasLength()
-# Base.length(s::SynthiePop) = length(s.roots)
+# IteratorSize(::Type{Synthesizer}) = HasLength()
+# Base.length(s::Synthesizer) = length(s.roots)
 
-function iterate(S::SynthiePop)
+function iterate(S::Synthesizer)
     iter = first(S.iterators)
     next = iterate(iter)
     _iterate(S, next)
 end
 
-function _iterate(S::SynthiePop, state)
+function _iterate(S::Synthesizer, state)
     state === nothing && return nothing
     sol = next_solution(S, first(state))
     push!(S.iterators, sol)
@@ -123,7 +123,7 @@ function _iterate(S::SynthiePop, state)
     result, (next, last(state))
 end
 
-function iterate(S::SynthiePop, states)
+function iterate(S::Synthesizer, states)
     sstate, pstate = states
     next = iterate(last(S.iterators), sstate)
     if next === nothing
@@ -133,7 +133,7 @@ function iterate(S::SynthiePop, states)
     first(next), (last(next), pstate)
 end
 
-function next_solution(s::SynthiePop{T}, next) where {T}
+function next_solution(s::Synthesizer{T}, next) where {T}
     roots, vars = next
     ctx = mkcontext(s.body, s.polys, vars, s.params, roots)
     varmap, cstr = constraints(ctx)
