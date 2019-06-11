@@ -77,6 +77,7 @@ struct Synthesizer{T<:NLSolver}
     params::Vector{Basic}
     shape::MatrixShape
     maxsol::Number
+    trivial::Bool
     timeout::Int # seconds
     iterators::Vector{Any}
 end
@@ -87,6 +88,7 @@ function synth(polys; kwargs...)
     solver  = get(kwargs, :solver, Yices)
     timeout = get(kwargs, :timeout, 10)
     maxsol  = get(kwargs, :maxsol, 1)
+    trivial = get(kwargs, :trivial, false)
 
     syms = SymEngine.free_symbols(polys)
     xparams, xvars = filtervars(syms)
@@ -103,7 +105,7 @@ function synth(polys; kwargs...)
     perm_iter = perm ? permutations(vars) : [vars]
     iters = [Iterators.product(part_iter, perm_iter)]
 
-    Synthesizer{solver}(body, polys, vars, params, shape, maxsol, timeout, iters)
+    Synthesizer{solver}(body, polys, vars, params, shape, maxsol, trivial, timeout, iters)
 end
 
 # IteratorSize(::Type{Synthesizer}) = HasLength()
@@ -137,11 +139,13 @@ function next_solution(s::Synthesizer{T}, next) where {T}
     roots, vars = next
     ctx = mkcontext(s.body, s.polys, vars, s.params, roots)
     varmap, cstr = constraints(ctx)
-    cstropt = constraints_opt(ctx)
     solver = T()
     NLSat.variables!(solver, varmap)
     NLSat.constraints!(solver, cstr)
-    NLSat.constraints!(solver, cstropt)
+    if !s.trivial
+        cstropt = constraints_opt(ctx)
+        NLSat.constraints!(solver, cstropt)
+    end
     info = SynthInfo(T, ctx, s.shape, s.timeout)
     Solutions(solver, info, maxsol=s.maxsol)
 end
