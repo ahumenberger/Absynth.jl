@@ -44,7 +44,7 @@ mutable struct Solutions
 end
 
 IteratorSize(::Type{Solutions}) = HasLength()
-Base.length(s::Solutions) = s.maxsol
+length(s::Solutions) = s.maxsol
 
 iterate(it::Solutions) = iterate(it, 0)
 
@@ -79,36 +79,31 @@ struct SynthiePop{T<:NLSolver}
     maxsol::Number
     timeout::Int # seconds
     iterators::Vector{Any}
+end
 
-    function SynthiePop(polys::Vector{P}; 
-                        solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, 
-                        shape::MatrixShape=full, vars::Vector{V}=Symbol[], 
-                        params::Vector{V}=Symbol[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
+function synth(polys; kwargs...)
+    polys = map(Basic, polys)
 
-        polys  = map(Basic, polys)
-        vars   = map(Basic, vars)
-        params = map(Basic, params)
-        fs = SymEngine.free_symbols(polys)
-        xparams, xvars = filtervars(fs)
-        if isempty(vars)
-            vars = xvars
-        else
-            @assert issubset(xvars, vars) "Variables in polys ($(fs)) not a subset of given variables ($(vars))"
-        end
-        if isempty(params)
-            params = xparams
-        end
+    solver  = get(kwargs, :solver, Yices)
+    timeout = get(kwargs, :timeout, 10)
+    maxsol  = get(kwargs, :maxsol, 1)
 
-        dims = length(vars)
-        body = dynamicsmatrix(dims, shape)
-        if shape == uni
-            part = partitions(dims, 1)
-        else
-            part = partitions(dims)
-        end
-        iters = [Iterators.product(part, permutations(vars))]
-        new{S}(body, polys, vars, params, shape, maxsol, timeout, iters)
-    end
+    syms = SymEngine.free_symbols(polys)
+    xparams, xvars = filtervars(syms)
+    vars   = map(Basic, get(kwargs, :vars, xvars))
+    params = map(Basic, get(kwargs, :params, xparams))
+    @assert issubset(xvars, vars) "Variables in polys ($(xvars)) not a subset of given variables ($(vars))"
+
+    shape = get(kwargs, :shape, full)
+    dims = length(vars)
+    body = dynamicsmatrix(dims, shape)
+    part_iter = shape == uni ? partitions(dims, 1) : partitions(dims)
+    
+    perm = get(kwargs, :perm, shape in (uni, upper))
+    perm_iter = perm ? permutations(vars) : [vars]
+    iters = [Iterators.product(part_iter, perm_iter)]
+
+    SynthiePop{solver}(body, polys, vars, params, shape, maxsol, timeout, iters)
 end
 
 # IteratorSize(::Type{SynthiePop}) = HasLength()
