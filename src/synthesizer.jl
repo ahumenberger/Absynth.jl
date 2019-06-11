@@ -84,7 +84,25 @@ struct SynthiePop{T<:NLSolver}
     timeout::Int # seconds
     iterators::Vector{Any}
 
-    function SynthiePop(::Type{T}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, shape::MatrixShape, timeout::Int, maxsol::Number) where {T<:NLSolver}
+    function SynthiePop(polys::Vector{P}; 
+                        solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, 
+                        shape::MatrixShape=full, vars::Vector{V}=Symbol[], 
+                        params::Vector{V}=Symbol[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
+
+        polys  = map(Basic, polys)
+        vars   = map(Basic, vars)
+        params = map(Basic, params)
+        fs = SymEngine.free_symbols(polys)
+        xparams, xvars = filtervars(fs)
+        if isempty(vars)
+            vars = xvars
+        else
+            @assert issubset(xvars, vars) "Variables in polys ($(fs)) not a subset of given variables ($(vars))"
+        end
+        if isempty(params)
+            params = xparams
+        end
+
         dims = length(vars)
         body = dynamicsmatrix(dims, shape)
         if shape == uni
@@ -93,7 +111,7 @@ struct SynthiePop{T<:NLSolver}
             part = partitions(dims)
         end
         iters = [Iterators.product(part, permutations(vars))]
-        new{T}(body, polys, vars, params, shape, maxsol, timeout, iters)
+        new{S}(body, polys, vars, params, shape, maxsol, timeout, iters)
     end
 end
 
@@ -186,22 +204,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-function synth(polys::Vector{P}; solver::Type{S}=Yices, timeout::Int=10, maxsol::Int=1, shape::MatrixShape=full, vars::Vector{V}=Symbol[], params::Vector{V}=Symbol[]) where {S<:NLSolver, P<:Union{Basic,Expr}, V<:Union{Basic,Symbol}}
-    polys  = map(Basic, polys)
-    vars   = map(Basic, vars)
-    params = map(Basic, params)
-    fs = SymEngine.free_symbols(polys)
-    xparams, xvars = filtervars(fs)
-    if isempty(vars)
-        vars = xvars
-    else
-        @assert issubset(xvars, vars) "Variables in polys ($(fs)) not a subset of given variables ($(vars))"
-    end
-    if isempty(params)
-        params = xparams
-    end
-    SynthiePop(S, polys, vars, params, shape, timeout, maxsol)
-end
+# function synth(args...; kwargs...) = SynthiePop(S, polys, vars, params, shape, timeout, maxsol)
 
 # ------------------------------------------------------------------------------
 

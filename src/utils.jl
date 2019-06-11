@@ -9,5 +9,5 @@ export @synth
 
 macro synth(ps, kwargs...)
     args = [esc(a) for a in kwargs]
-    :(Iterators.Stateful(synth($(splitformula(ps)); $(args...))))
+    :(Iterators.Stateful(SynthiePop($(splitformula(ps)); $(args...))))
 end
