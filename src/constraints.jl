@@ -100,16 +100,6 @@ function raw_constraints(ctx::SynthContext)
     equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; csrel]
     @debug "Equality constraints" cscforms csinit csroots csrel
 
-    with_logger(latex_logger()) do
-        beautify(x) = startswith(string(x), "-") ? simplify(-x) : x
-        lalign(vec) = latexalign(vec, zeros(Basic, length(vec)), cdot=false)
-        lcforms = lalign(map(beautify, cscforms))
-        linit   = lalign(map(beautify, csinit))
-        lroots  = lalign(map(beautify, csroots))
-        lrel    = lalign(map(beautify, csrel))
-        @info "Equality constraints" lcforms linit lroots lrel
-    end
-
     # Inequality constraints
     csdistinct = cstr_distinct(ctx)
     inequalities = csdistinct
@@ -134,6 +124,32 @@ function raw_constraints(ctx::SynthContext)
         end
     end
     @debug "Variables" varmap
+
+    with_logger(latex_logger()) do
+
+        function subscript(s)
+            str = string(s)
+            if !occursin("_", str)
+                i = findfirst(x->x in '0':'9', str)
+                return Basic(join([str[1:i-1], "_", str[i:end]]))
+            end
+            Basic(str)
+        end
+
+        sdict = Dict(Basic(v)=>subscript(v) for v in keys(varmap))
+
+        function beautify(x)
+            x = SymEngine.subs(x, sdict...)
+            startswith(string(x), "-") ? simplify(-x) : x
+        end
+
+        lalign(vec) = latexalign(vec, zeros(Basic, length(vec)), cdot=false)
+        lcforms = lalign(map(beautify, cscforms))
+        linit   = lalign(map(beautify, csinit))
+        lroots  = lalign(map(beautify, csroots))
+        lrel    = lalign(map(beautify, csrel))
+        @info "Equality constraints" lcforms linit lroots lrel
+    end
 
     varmap, equalities, inequalities
 end
