@@ -1,5 +1,7 @@
 module Absynth
 
+using Logging
+using Latexify
 using MacroTools
 using Combinatorics
 using LinearAlgebra
@@ -23,6 +25,14 @@ include("report.jl")
 include("utils.jl")
 
 export synth, report, rerun
+
+# ------------------------------------------------------------------------------
+
+_latex_logger = NullLogger()
+latex_logger(l::AbstractLogger) = global _latex_logger = l
+latex_logger() = _latex_logger
+
+export latex_logger
 
 # ------------------------------------------------------------------------------
 

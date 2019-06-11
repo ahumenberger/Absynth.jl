@@ -100,6 +100,16 @@ function raw_constraints(ctx::SynthContext)
     equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; csrel]
     @debug "Equality constraints" cscforms csinit csroots csrel
 
+    with_logger(latex_logger()) do
+        beautify(x) = startswith(string(x), "-") ? simplify(-x) : x
+        lalign(vec) = latexalign(vec, zeros(Basic, length(vec)), cdot=false)
+        lcforms = lalign(map(beautify, cscforms))
+        linit   = lalign(map(beautify, csinit))
+        lroots  = lalign(map(beautify, csroots))
+        lrel    = lalign(map(beautify, csrel))
+        @info "Equality constraints" lcforms linit lroots lrel
+    end
+
     # Inequality constraints
     csdistinct = cstr_distinct(ctx)
     inequalities = csdistinct
