@@ -37,22 +37,32 @@ mutable struct Solutions
     status::NLStatus
     elapsed::TimePeriod
     info::SynthInfo
+    maxsol::Number
 
-    Solutions(s::NLSolver, info::SynthInfo) = new(s, NLSat.sat, Millisecond(0), info)
+    function Solutions(s::NLSolver, info::SynthInfo; maxsol=Inf)
+        @assert maxsol >= 1
+        new(s, NLSat.sat, Millisecond(0), info, maxsol)
+    end
 end
+
+IteratorSize(::Type{Solutions}) = HasLength()
+Base.length(s::Solutions) = s.maxsol
 
 iterate(it::Solutions) = iterate(it, 0)
 
-function iterate(it::Solutions, state)
-    it.status, it.elapsed, model = NLSat.solve(it.solver, timeout=it.info.timeout)
-    if it.status == NLSat.sat
-        A, B = it.info.ctx.init, it.info.ctx.body
+function iterate(s::Solutions, state)
+    if isnothing(state) || state >= s.maxsol
+        return nothing
+    end
+    s.status, s.elapsed, model = NLSat.solve(s.solver, timeout=s.info.timeout)
+    if s.status == NLSat.sat
+        A, B = s.info.ctx.init, s.info.ctx.body
         body = [get(model, Symbol(string(b)), b) for b in B]
         init = [get(model, Symbol(string(b)), b) for b in A]
-        next_constraints!(it.solver, model)
-        return SynthResult(Loop(init, body), it.elapsed, it.info), state+1
+        next_constraints!(s.solver, model)
+        return SynthResult(Loop(init, body), s.elapsed, s.info), state+1
     end
-    return nothing
+    SynthResult(s.status, s.elapsed, s.info), nothing
 end
 
 function next_constraints!(s::NLSolver, m::Model)
@@ -61,6 +71,71 @@ function next_constraints!(s::NLSolver, m::Model)
 end
 
 reason(s::Solutions) = SynthResult(s.status, s.elapsed, s.info)
+
+# ------------------------------------------------------------------------------
+
+struct SynthiePop{T<:NLSolver}
+    body::Matrix{Basic}
+    polys::Vector{Basic}
+    vars::Vector{Basic}
+    params::Vector{Basic}
+    shape::MatrixShape
+    maxsol::Number
+    timeout::Int # seconds
+    iterators::Vector{Any}
+
+    function SynthiePop(::Type{T}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, shape::MatrixShape, timeout::Int, maxsol::Number) where {T<:NLSolver}
+        dims = length(vars)
+        body = dynamicsmatrix(dims, shape)
+        if shape == uni
+            part = partitions(dims, 1)
+        else
+            part = partitions(dims)
+        end
+        iters = [Iterators.product(part, permutations(vars))]
+        new{T}(body, polys, vars, params, shape, maxsol, timeout, iters)
+    end
+end
+
+# IteratorSize(::Type{SynthiePop}) = HasLength()
+# Base.length(s::SynthiePop) = length(s.roots)
+
+function iterate(S::SynthiePop)
+    iter = first(S.iterators)
+    next = iterate(iter)
+    _iterate(S, next)
+end
+
+function _iterate(S::SynthiePop, state)
+    state === nothing && return nothing
+    sol = next_solution(S, first(state))
+    push!(S.iterators, sol)
+    result, next = iterate(sol)
+    result, (next, last(state))
+end
+
+function iterate(S::SynthiePop, states)
+    sstate, pstate = states
+    next = iterate(last(S.iterators), sstate)
+    if next === nothing
+        iter1 = first(S.iterators)
+        return _iterate(S, iterate(iter1, pstate))
+    end
+    first(next), (last(next), pstate)
+end
+
+function next_solution(s::SynthiePop{T}, next) where {T}
+    roots, vars = next
+    ctx = mkcontext(s.body, s.polys, vars, s.params, roots)
+    varmap, cstr = constraints(ctx)
+    cstropt = constraints_opt(ctx)
+    solver = T()
+    NLSat.variables!(solver, varmap)
+    NLSat.constraints!(solver, cstr)
+    NLSat.constraints!(solver, cstropt)
+    info = SynthInfo(T, ctx, s.shape, s.timeout)
+    Solutions(solver, info, maxsol=s.maxsol)
+end
 
 # ------------------------------------------------------------------------------
 
@@ -125,7 +200,7 @@ function synth(polys::Vector{P}; solver::Type{S}=Yices, timeout::Int=10, maxsol:
     if isempty(params)
         params = xparams
     end
-    MultiSynthesizer(Synthesizer(S, polys, vars, params, shape, timeout), maxsol)
+    SynthiePop(S, polys, vars, params, shape, timeout, maxsol)
 end
 
 # ------------------------------------------------------------------------------
