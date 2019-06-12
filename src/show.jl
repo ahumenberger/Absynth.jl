@@ -1,14 +1,14 @@
 
-to_assignments(xs::Vector, ys::Vector) = ["$x = $y" for (x,y) in zip(xs,ys)]
+to_assignments(xs::Vector, ys::Vector) = ["$x = $y" for (x, y) in zip(xs, ys)]
 to_lines(xs::Vector{String}, indent::Int) = join(xs, "\n$(repeat("    ", indent))")
 to_list(xs) = join(xs, ", ")
 
 # ------------------------------------------------------------------------------
 
-lpar(h::Int, d = "") = h == 1 ? "($(d)" : join(["⎛$(d)"; fill("⎜$(d)", h-2); "⎝$(d)"], "\n")
-rpar(h::Int, d = "") = h == 1 ? "$(d))" : join(["$(d)⎞"; fill("$(d)⎟", h-2); "$(d)⎠"], "\n")
+lpar(h::Int, d = "") = h == 1 ? "($(d)" : join(["⎛$(d)"; fill("⎜$(d)", h - 2); "⎝$(d)"], "\n")
+rpar(h::Int, d = "") = h == 1 ? "$(d))" : join(["$(d)⎞"; fill("$(d)⎟", h - 2); "$(d)⎠"], "\n")
 
-space(h::Int, sp=" ") = join(fill(sp, h), "\n")
+space(h::Int, sp = " ") = join(fill(sp, h), "\n")
 
 function mergestr(strings::String...)
     splits = split.(strings, "\n")

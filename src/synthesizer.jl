@@ -37,7 +37,7 @@ struct Solutions
     info::SynthInfo
     maxsol::Number
 
-    function Solutions(s::NLSolver, info::SynthInfo; maxsol=Inf)
+    function Solutions(s::NLSolver, info::SynthInfo; maxsol = Inf)
         @assert maxsol >= 1
         new(s, info, maxsol)
     end
@@ -50,13 +50,13 @@ iterate(it::Solutions) = iterate(it, 0)
 
 function iterate(S::Solutions, state)
     (state === nothing || state >= S.maxsol) && return nothing
-    status, elapsed, model = NLSat.solve(S.solver, timeout=S.info.timeout)
+    status, elapsed, model = NLSat.solve(S.solver, timeout = S.info.timeout)
     if status == NLSat.sat
         A, B = S.info.ctx.init, S.info.ctx.body
         body = [get(model, Symbol(string(b)), b) for b in B]
         init = [get(model, Symbol(string(b)), b) for b in A]
         next_constraints!(S.solver, model)
-        return SynthResult(Loop(init, body), elapsed, S.info), state+1
+        return SynthResult(Loop(init, body), elapsed, S.info), state + 1
     end
     SynthResult(status, elapsed, S.info), nothing
 end
@@ -68,7 +68,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-struct Synthesizer{T<:NLSolver}
+struct Synthesizer{T <: NLSolver}
     body::Matrix{Basic}
     polys::Vector{Basic}
     vars::Vector{Basic}
@@ -145,5 +145,5 @@ function next_solution(S::Synthesizer{T}, next) where {T}
         NLSat.constraints!(solver, cstropt)
     end
     info = SynthInfo(T, ctx, S.shape, S.timeout)
-    Solutions(solver, info, maxsol=S.maxsol)
+    Solutions(solver, info, maxsol = S.maxsol)
 end
