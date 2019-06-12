@@ -226,11 +226,11 @@ end
 
 "Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
 function cstr_roots(ctx::SynthContext)
-    B, rs = ctx.body, ctx.roots
-    λ = Basic("lbd")
-    cpoly = det(B-UniformScaling(λ)) |> simplify
-    cstr = [SymEngine.subs(cpoly, λ=>r) for r in rs]
-    cstr
+    B, rs, ms = ctx.body, ctx.roots, ctx.multi
+    λ = Basic(gensym_unhashed(:x))
+    cpoly = det(B-UniformScaling(λ))
+    factors = prod((λ - r)^m for (r, m) in zip(rs,ms))
+    destructpoly(cpoly - factors, λ)
 end
 
 "Generate constraints ensuring that the elements of rs are distinct."
