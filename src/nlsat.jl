@@ -125,8 +125,9 @@ end
 function constraints!(s::YicesSolver, cstr::Vector{Expr})
     for c in cstr
         prefix_str = prefix(c)
-        push!(s.cstr, yices.Terms.parse_term(prefix_str))
-        push!(s.input, yices.Terms.to_string(yices.Terms.parse_term(prefix_str), 1000))
+        term = yices.Terms.parse_term(prefix_str)
+        push!(s.cstr, term)
+        push!(s.input, yices.Terms.to_string(term, 200))
     end
 end
 
@@ -153,8 +154,12 @@ function solve(s::YicesSolver; timeout::Int = -1)
 end
 
 function write_yices(io::IO, s::YicesSolver)
-    writedlm(io, ["(define $v::real)" for v in keys(s.vars)])
-    writedlm(io, ["(assert $x)" for x in s.input])
+    for v in keys(s.vars)
+        write(io, "(define $v::real)\n")
+    end
+    for x in s.input
+        write(io, "(assert $x)\n")
+    end
     write(io, "(check)\n")
     write(io, "(show-model)\n")
     close(io)
