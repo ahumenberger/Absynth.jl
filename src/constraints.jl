@@ -213,7 +213,16 @@ function cstr_init(ctx::SynthContext)
     destructpoly(cstr, ctx.params)
 end
 
-LinearAlgebra.det(m::Matrix{Basic}) = det(convert(SymEngine.CDenseMatrix, m))
+# LinearAlgebra.det(m::Matrix{Basic}) = det(convert(SymEngine.CDenseMatrix, m))
+
+function LinearAlgebra.det(M::Matrix{Basic}) 
+    m = size(M, 1)
+    if m > 2
+        return sum((-1)^(i-1) * M[i,1] *  det(M[1:end .!= i, 2:end]) for i in 1:m)
+    else
+        return M[1,1] * M[2,2] - M[2,1] * M[1,2]
+    end
+end
 
 "Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
 function cstr_roots(ctx::SynthContext)
