@@ -32,7 +32,7 @@ const Model = Dict{Symbol,Number}
 
 # ------------------------------------------------------------------------------
 
-mutable struct Solutions
+struct Solutions
     solver::NLSolver
     info::SynthInfo
     maxsol::Number
@@ -48,17 +48,17 @@ length(s::Solutions) = s.maxsol
 
 iterate(it::Solutions) = iterate(it, 0)
 
-function iterate(s::Solutions, state)
-    (state === nothing || state >= s.maxsol) && return nothing
-    status, elapsed, model = NLSat.solve(s.solver, timeout=s.info.timeout)
+function iterate(S::Solutions, state)
+    (state === nothing || state >= S.maxsol) && return nothing
+    status, elapsed, model = NLSat.solve(S.solver, timeout=S.info.timeout)
     if status == NLSat.sat
-        A, B = s.info.ctx.init, s.info.ctx.body
+        A, B = S.info.ctx.init, S.info.ctx.body
         body = [get(model, Symbol(string(b)), b) for b in B]
         init = [get(model, Symbol(string(b)), b) for b in A]
-        next_constraints!(s.solver, model)
-        return SynthResult(Loop(init, body), elapsed, s.info), state+1
+        next_constraints!(S.solver, model)
+        return SynthResult(Loop(init, body), elapsed, S.info), state+1
     end
-    SynthResult(status, elapsed, s.info), nothing
+    SynthResult(status, elapsed, S.info), nothing
 end
 
 function next_constraints!(s::NLSolver, m::Model)
@@ -133,17 +133,17 @@ function iterate(S::Synthesizer, states)
     first(next), (last(next), pstate)
 end
 
-function next_solution(s::Synthesizer{T}, next) where {T}
+function next_solution(S::Synthesizer{T}, next) where {T}
     roots, vars = next
-    ctx = mkcontext(s.body, s.polys, vars, s.params, roots)
+    ctx = mkcontext(S.body, S.polys, vars, S.params, roots)
     varmap, cstr = constraints(ctx)
     solver = T()
     NLSat.variables!(solver, varmap)
     NLSat.constraints!(solver, cstr)
-    if !s.trivial
+    if !S.trivial
         cstropt = constraints_opt(ctx)
         NLSat.constraints!(solver, cstropt)
     end
-    info = SynthInfo(T, ctx, s.shape, s.timeout)
-    Solutions(solver, info, maxsol=s.maxsol)
+    info = SynthInfo(T, ctx, S.shape, S.timeout)
+    Solutions(solver, info, maxsol=S.maxsol)
 end
