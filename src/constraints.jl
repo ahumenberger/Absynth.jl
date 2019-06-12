@@ -85,7 +85,7 @@ struct SynthContext
 end
 
 function mkcontext(body::Matrix{Basic}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
-    rs, lc = symroot(length(ms)), Basic("n")
+    rs, lc = symroot(length(ms)), Basic(gensym_unhashed(:n))
     SynthContext(polys, vars, params, rs, ms, body, map(initvar, vars), lc)
 end
 
