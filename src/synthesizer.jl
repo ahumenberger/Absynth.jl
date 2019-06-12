@@ -49,9 +49,7 @@ length(s::Solutions) = s.maxsol
 iterate(it::Solutions) = iterate(it, 0)
 
 function iterate(s::Solutions, state)
-    if isnothing(state) || state >= s.maxsol
-        return nothing
-    end
+    (state === nothing || state >= s.maxsol) && return nothing
     status, elapsed, model = NLSat.solve(s.solver, timeout=s.info.timeout)
     if status == NLSat.sat
         A, B = s.info.ctx.init, s.info.ctx.body
