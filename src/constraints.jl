@@ -125,32 +125,34 @@ function raw_constraints(ctx::SynthContext)
     end
     @debug "Variables" varmap
 
-    with_logger(latex_logger()) do
+    if !(latex_logger() isa NullLogger)
+        with_logger(latex_logger()) do
 
-        function subscript(s)
-            str = string(s)
-            if !occursin("_", str)
-                i = findfirst(x->x in '0':'9', str)
-                return Basic(join([str[1:i-1], "_", str[i:end]]))
+            function subscript(s)
+                str = string(s)
+                if !occursin("_", str)
+                    i = findfirst(x->x in '0':'9', str)
+                    return Basic(join([str[1:i-1], "_", str[i:end]]))
+                end
+                Basic(str)
             end
-            Basic(str)
+
+            sdict = Dict(Basic(v)=>subscript(v) for v in keys(varmap))
+
+            function beautify(x)
+                # x = SymEngine.subs(x, Basic("t00")=>1, Basic("w1")=>1, Basic("q00")=>Basic("q_0"))
+                x = SymEngine.subs(x, sdict...)
+                x = simplify(x)
+                startswith(string(x), "-") ? simplify(-x) : x
+            end
+
+            lalign(vec) = latexalign(vec, zeros(Basic, length(vec)), cdot=false)
+            lcforms = lalign(map(beautify, cscforms))
+            linit   = lalign(map(beautify, csinit))
+            lroots  = lalign(map(beautify, csroots))
+            lrel    = lalign(map(beautify, csrel))
+            @info "Equality constraints" lcforms linit lroots lrel
         end
-
-        sdict = Dict(Basic(v)=>subscript(v) for v in keys(varmap))
-
-        function beautify(x)
-            # x = SymEngine.subs(x, Basic("t00")=>1, Basic("w1")=>1, Basic("q00")=>Basic("q_0"))
-            x = SymEngine.subs(x, sdict...)
-            x = simplify(x)
-            startswith(string(x), "-") ? simplify(-x) : x
-        end
-
-        lalign(vec) = latexalign(vec, zeros(Basic, length(vec)), cdot=false)
-        lcforms = lalign(map(beautify, cscforms))
-        linit   = lalign(map(beautify, csinit))
-        lroots  = lalign(map(beautify, csroots))
-        lrel    = lalign(map(beautify, csrel))
-        @info "Equality constraints" lcforms linit lroots lrel
     end
 
     varmap, equalities, inequalities
