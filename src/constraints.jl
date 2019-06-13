@@ -228,7 +228,7 @@ end
 function cstr_roots(ctx::SynthContext)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
     λ = Basic(gensym_unhashed(:x))
-    cpoly = det(B-UniformScaling(λ))
+    cpoly = det(UniformScaling(λ)-B)
     factors = prod((λ - r)^m for (r, m) in zip(rs,ms))
     destructpoly(cpoly - factors, λ)
 end
