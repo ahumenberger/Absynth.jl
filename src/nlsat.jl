@@ -77,7 +77,8 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
         end
     end
     elapsed = Millisecond(round((time_ns()-start)/1e6))
-    if success(P)
+    # Yices returns 0 and Z3 returns 1 on UNSAT
+    if success(P) || P.exitcode == 1
         lines = readlines(P)
         status = popfirst!(lines)
         if status == "sat"
