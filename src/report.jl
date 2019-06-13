@@ -1,6 +1,8 @@
 using DataFrames
 using ProgressMeter
 
+export wide
+
 const InvSet = Vector{Expr}
 
 function report(polys; solvers=[Yices,Z3], timeout=2, maxsol=1, shapes=[full, upper, uni])
@@ -20,6 +22,13 @@ function report(polys; solvers=[Yices,Z3], timeout=2, maxsol=1, shapes=[full, up
     end
     finish!(progress)
     df
+end
+
+function wide(df)
+    key = [:Instance,:Shape,:Roots]
+    t1 = unstack(df, key, :Solver, :ElapsedSolve)
+    t2 = unstack(df, key, :Solver, :Loop)
+    join(t1, t2, on = key, makeunique = true)
 end
 
 function rerun(df::DataFrame, row::Int; timeout=2, maxsol=1)
