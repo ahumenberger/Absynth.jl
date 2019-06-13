@@ -1,7 +1,7 @@
 import Base: iterate, length, IteratorSize, HasLength, SizeUnknown
 
 export Loop
-export value, values
+export value
 
 # ------------------------------------------------------------------------------
 
@@ -11,7 +11,7 @@ struct Loop
 end
 
 value(l::Loop, k::Int) = l.body^k * l.init
-values(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
+value(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 
 # ------------------------------------------------------------------------------
 
