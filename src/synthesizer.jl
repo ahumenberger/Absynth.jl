@@ -28,6 +28,8 @@ struct SynthResult
     info::SynthInfo
 end
 
+issat(s::SynthResult) = s.result isa Loop
+
 const Model = Dict{Symbol,Number}
 
 # ------------------------------------------------------------------------------
@@ -104,6 +106,28 @@ function synth(polys; kwargs...)
     iters = [Iterators.product(part_iter, perm_iter)]
 
     Synthesizer{solver}(body, polys, vars, params, shape, maxsol, trivial, timeout, iters)
+end
+
+function synthfirst(polys; kwargs...)
+
+    maxauxvars = get(kwargs, :maxauxvars, 1)
+
+    polys = map(Basic, polys)
+    syms = SymEngine.free_symbols(polys)
+    _, vars = filtervars(syms)
+    args = Dict(collect(kwargs))
+    progress = ProgressUnknown("Tries:")
+    for _ in 1:maxauxvars
+        push!(vars, gensym_unhashed(:t))
+        args[:vars] = vars
+        args[:timeout] = 1
+        synthesizer = synth(polys; args...)
+        for sol in synthesizer
+            issat(sol) && return sol
+            next!(progress)
+        end
+    end
+    return nothing
 end
 
 # IteratorSize(::Type{Synthesizer}) = HasLength()
