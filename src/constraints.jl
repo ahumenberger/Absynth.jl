@@ -107,7 +107,7 @@ function raw_constraints(ctx::SynthContext)
 
     rs, ms = ctx.roots, ctx.multi
     t = length(ms)
-    cs = Iterators.flatten(symconst(i, j, size(ctx.body, 1), params=ctx.params) for i in 1:t for j in 1:ms[i]) |> collect
+    cs = Iterators.flatten(coeffvec(i, j, size(ctx.body, 1), params=ctx.params) for i in 1:t for j in 1:ms[i]) |> collect
     cs = SymEngine.free_symbols(cs)
     cs = setdiff(cs, ctx.params)
     bs = Iterators.flatten(ctx.body) |> collect
@@ -172,10 +172,10 @@ end
 
 function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}; lc::Basic, exp::Basic, params::Vector{Basic})
     t = length(rs)
-    sum(symconst(i, j, varcnt, params=params) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
+    sum(coeffvec(i, j, varcnt, params=params) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
-function symconst(i::Int, j::Int, rows::Int; params::Vector{Basic})
+function coeffvec(i::Int, j::Int, rows::Int; params::Vector{Basic})
     nparams = length(params) + 1
     params = [params; one(Basic)]
 
@@ -183,6 +183,22 @@ function symconst(i::Int, j::Int, rows::Int; params::Vector{Basic})
     # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
     C = [Basic("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
     C * params
+end
+
+function initvec(vars::Vector{Basic}, params::Vector{Basic})
+    rows, cols = length(vars), length(params)+1
+    baseparams = [map(basevar, params); 1]
+    A = zeros(Basic, rows, cols)
+
+    for i in 1:rows, j in 1:cols
+        u, v = vars[i], baseparams[j]
+        if u == v
+            A[i,j] = j == findfirst(x->x==u, baseparams) ? 1 : 0
+        else
+            A[i,j] = findfirst(x->x==u, baseparams) === nothing ? Basic("a$i$j") : 0
+        end
+    end
+    A*[params; 1]
 end
 
 symroot(n::Int) = [Basic("w$i") for i in 1:n]
@@ -194,7 +210,7 @@ function cstr_cforms(ctx::SynthContext)
     rows = size(ctx.body, 1)
     t = length(ctx.roots)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
-    Ds = [sum(binomial(k-1, j-1) * symconst(i, k, rows, params=ctx.params) * rs[i] for k in j:ms[i]) - B * symconst(i, j, rows, params=ctx.params) for i in 1:t for j in 1:ms[i]]
+    Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=ctx.params) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=ctx.params) for i in 1:t for j in 1:ms[i]]
     destructpoly(Iterators.flatten(Ds), ctx.params)
 end
 
