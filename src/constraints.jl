@@ -80,13 +80,13 @@ struct SynthContext
     roots::Vector{Basic}
     multi::Vector{Int}
     body::Matrix{Basic}
-    init::Vector{Basic}
+    init::Matrix{Basic}
     lc::Basic
 end
 
 function mkcontext(body::Matrix{Basic}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
     rs, lc = symroot(length(ms)), Basic(gensym_unhashed(:n))
-    SynthContext(polys, vars, params, rs, ms, body, map(initvar, vars), lc)
+    SynthContext(polys, vars, [params; one(Basic)], rs, ms, body, initvec(vars, params), lc)
 end
 
 # ------------------------------------------------------------------------------
@@ -198,7 +198,7 @@ function initvec(vars::Vector{Basic}, params::Vector{Basic})
             A[i,j] = findfirst(x->x==u, baseparams) === nothing ? Basic("a$i$j") : 0
         end
     end
-    A*[params; 1]
+    A
 end
 
 symroot(n::Int) = [Basic("w$i") for i in 1:n]
@@ -219,7 +219,7 @@ function cstr_init(ctx::SynthContext)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
     s = size(B, 1)
     d = sum(ms)
-    A = ctx.init
+    A = ctx.init*ctx.params
     cstr = Basic[]
     for i in 0:d-1
         M = cforms(s, rs, ms, lc=Basic(i), exp=Basic(i), params=ctx.params)
@@ -256,7 +256,7 @@ cstr_distinct(ctx::SynthContext) = [r1-r2 for (r1,r2) in combinations(ctx.roots,
 
 "Generate constraints ensuring that sequence is not constant, i.e. B*B*x0 != B*x0."
 function cstr_nonconstant(ctx::SynthContext)
-    A, B = ctx.init, ctx.body
+    A, B = ctx.init*ctx.params, ctx.body
     cs = B * B * A - B * A
     destructpoly(cs, ctx.params)
 end
@@ -268,11 +268,13 @@ function cstr_algrel(ctx::SynthContext)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
 
     cfs = cforms(size(B, 1), rs, ms, lc=ctx.lc, exp=one(Basic), params=ctx.params)
-    d = Dict(zip(ctx.vars, cfs))
+    dcfs = Dict(zip(ctx.vars, cfs))
+
+    dinit = Dict(zip(map(initvar, ctx.vars), ctx.init*ctx.params))
 
     cs = Basic[]
     for p in ctx.polys
-        p = SymEngine.subs(p, d...)
+        p = SymEngine.subs(p, dcfs..., dinit...)
         qs = destructpoly(p, ctx.lc)
         for (i, q) in enumerate(qs)
             ms, us = destructterm(q, rs)

@@ -54,11 +54,12 @@ function iterate(S::Solutions, state)
     (state === nothing || state >= S.maxsol) && return nothing
     status, elapsed, model = NLSat.solve(S.solver, timeout = S.info.timeout)
     if status == NLSat.sat
-        A, B = S.info.ctx.init, S.info.ctx.body
+        A, B= S.info.ctx.init, S.info.ctx.body
+        params = S.info.ctx.params
         body = [get(model, Symbol(string(b)), b) for b in B]
         init = [get(model, Symbol(string(b)), b) for b in A]
         next_constraints!(S.solver, model)
-        return SynthResult(Loop(init, body), elapsed, S.info), state + 1
+        return SynthResult(Loop(init*params, body), elapsed, S.info), state + 1
     end
     SynthResult(status, elapsed, S.info), nothing
 end
