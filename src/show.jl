@@ -10,6 +10,12 @@ rpar(h::Int, d = "") = h == 1 ? "$(d))" : join(["$(d)⎞"; fill("$(d)⎟", h - 2
 
 space(h::Int, sp = " ") = join(fill(sp, h), "\n")
 
+function symstr(h::Int, symbol::String)
+    a = fill("   ", h)
+    a[Int(ceil(h/2))] = " $(symbol) "
+    return join(a, "\n")
+end
+
 function mergestr(strings::String...)
     splits = split.(strings, "\n")
     rows = length(splits[1])
@@ -36,9 +42,28 @@ function Base.show(io::IO, ::MIME"text/plain", l::Loop)
     println(io, ":")
     h = size(l.body, 1)
     lstr, rstr = lpar(h), rpar(h, " ")
+    eq = symstr(h, "=")
+
+    lc = "\u2099"
+    lp, rp, plus = "", "", "\u208A" 
+    zero, one = "\u2080", "\u2081"
+
+    # lc = "n"
+    # lp, rp, plus = "(", ")", "+" 
+    # zero, one = "0", "1"
+
+    vars0 = replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", l.vars)), "\""=>"")
+    vars1 = replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", l.vars)), "\""=>"")
+    vars2 = replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", l.vars)), "\""=>"")
     body = sprint(Base.print_matrix, l.body)
     init = sprint(Base.print_matrix, l.init)
-    str = mergestr(space(h, "\t"), lstr, body, rstr, space(h, "\t"), lstr, init, rstr)
+
+    lhs1 = (lstr, vars2, rstr)
+    rhs1 = (lstr, body, rstr, lstr, vars1, rstr)
+
+    lhs2 = (lstr, vars0, rstr)
+    rhs2 = (lstr, init, rstr)
+    str = mergestr(space(h, "\t"), lhs1..., eq, rhs1..., space(h, "\t"), lhs2..., eq, rhs2...)
     print(io, str)
 end
 
