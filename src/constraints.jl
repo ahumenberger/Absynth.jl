@@ -258,6 +258,12 @@ cstr_distinct(ctx::SynthContext) = [r1-r2 for (r1,r2) in combinations(ctx.roots,
 function cstr_nonconstant(ctx::SynthContext)
     A, B = ctx.init*ctx.params, ctx.body
     cs = B * B * A - B * A
+    # do not consider variables which only occurr as initial variable in polys
+    vars = SymEngine.free_symbols(ctx.polys)
+    filter!(!isinitvar, vars)
+    nonloopvars = setdiff(ctx.vars, vars)
+    inds = [i for (i, v) in enumerate(ctx.vars) if !(v in vars)]
+    deleteat!(cs, inds)
     destructpoly(cs, ctx.params)
 end
 
