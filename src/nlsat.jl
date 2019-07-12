@@ -246,6 +246,8 @@ function solve(s::Z3Solver; timeout::Int=-1)
         openproc(`z3 $path`, timeout=timeout) do lines
             d = Dict{Symbol,Number}()
             parser = smtparser.SmtLibParser()
+            @warn "Filtered root-obj. Needs fix!"
+            filter!(x->!(occursin("root-obj", x)), lines)
             ls = parser.get_assignment_list(pyio.StringIO(join(lines)))
             for (var,val) in ls
                 cval = val.constant_value()
