@@ -5,16 +5,18 @@ import SymPy.Sym
 SymPy.Sym(x::Basic) = sympify(string(x))
 SymEngine.Basic(x::SymPy.Sym) = Basic(string(x))
 
-# if SymEngine.libversion < VersionNumber(0,4)
+if SymEngine.libversion >= VersionNumber(0,4) && false
+    function coeffs(ex::Basic, x::Basic)
+        d = degree(ex, x)
+        ex = SymEngine.expand(ex)
+        out = [coeff(ex, x, Basic(i)) for i in d:-1:0]
+        out
+    end
+else
     function coeffs(ex::Basic, x::Basic)
         Basic.(sympy.Poly(Sym(ex), Sym(x)).coeffs())
     end
-# else
-#     function coeffs(ex::Basic, x::Basic)
-#         d = degree(ex, x)
-#         [coeff(ex, x, i) for i in d:-1:0]
-#     end
-# end
+end
 
 function degree(ex::Basic, x::Basic)
     convert(Int, SymPy.degree(Sym(ex), gen=Sym(x)))
@@ -84,9 +86,9 @@ struct SynthContext
     lc::Basic
 end
 
-function mkcontext(body::Matrix{Basic}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
+function mkcontext(body::Matrix{Basic}, init::Matrix{Basic}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
     rs, lc = symroot(length(ms)), Basic(gensym_unhashed(:n))
-    SynthContext(polys, vars, [params; one(Basic)], rs, ms, body, initvec(vars, params), lc)
+    SynthContext(polys, vars, [params; one(Basic)], rs, ms, body, init, lc)
 end
 
 # ------------------------------------------------------------------------------
@@ -176,8 +178,7 @@ function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}; lc::Basic, exp:
 end
 
 function coeffvec(i::Int, j::Int, rows::Int; params::Vector{Basic})
-    nparams = length(params) + 1
-    params = [params; one(Basic)]
+    nparams = length(params)
 
     # s = collect('c':'z')[i*j]
     # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
@@ -284,6 +285,7 @@ function cstr_algrel(ctx::SynthContext)
         qs = destructpoly(p, ctx.lc)
         for (i, q) in enumerate(qs)
             ms, us = destructterm(q, rs)
+            @assert SymEngine.expand(sum(m*u for (m,u) in zip(ms,us))) == SymEngine.expand(q) "Factorization bug"
             l = length(ms)
             if all(isone, ms)
                 l = 1
@@ -301,13 +303,15 @@ destructpoly(p::Basic, var::Basic) = coeffs(p, var)
 destructpoly(p::Basic, var::Basic, left::Basic...) = 
     reduce(union, map(x->destructpoly(x, left...), coeffs(p, var)))
 
-destructpoly(ps, vars::Vector{Basic}) =
-    isempty(vars) ? ps : reduce(union, map(x->destructpoly(x, vars...), ps))
+function destructpoly(ps, vars::Vector{Basic})
+    xvars = SymEngine.free_symbols(vars)
+    isempty(xvars) ? ps : reduce(union, map(x->destructpoly(x, xvars...), ps))
+end
 
 function destructterm(p::Basic, rs::Vector{Basic})
     ms = Basic[]
     cs = Basic[]
-    for term in get_args(SymEngine.expand(p))
+    for term in summands(p)
         ds = [degree(term, r) for r in rs]
         m = prod(r^d for (r,d) in zip(rs,ds))
         c = term / m
@@ -329,4 +333,7 @@ function factor(ms::Vector{Basic}, us::Vector{Basic})
     keys(map), Base.values(map)
 end
 
-
+function summands(x::Basic)
+    args = get_args(SymEngine.expand(x))
+    sum(args) == x ? args : x
+end

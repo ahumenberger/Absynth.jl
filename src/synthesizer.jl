@@ -100,12 +100,16 @@ function synth(polys; kwargs...)
     @assert issubset(xvars, vars) "Variables in polys ($(xvars)) not a subset of given variables ($(vars))"
 
     shape = get(kwargs, :shape, full)
+    # permutations of variables without dimension for constant 1
+    perm = get(kwargs, :perm, shape in (uni, upper))
+    perm_iter = perm ? permutations(copy(vars)) : [copy(vars)]
+    # add dimension for constant 1
+    push!(vars, Basic(:cc))
+
     dims = length(vars)
     body = dynamicsmatrix(dims, shape)
-    part_iter = shape == uni ? partitions(dims, 1) : partitions(dims)
-    
-    perm = get(kwargs, :perm, shape in (uni, upper))
-    perm_iter = perm ? permutations(vars) : [vars]
+    part_iter = get(kwargs, :part, shape == uni ? partitions(dims, 1) : partitions(dims))
+
     iters = [Iterators.product(part_iter, perm_iter)]
 
     Synthesizer{solver}(body, polys, vars, params, shape, maxsol, trivial, timeout, iters)
@@ -162,7 +166,13 @@ end
 
 function next_solution(S::Synthesizer{T}, next) where {T}
     roots, vars = next
-    ctx = mkcontext(S.body, S.polys, vars, S.params, roots)
+    S.body[end,1:end-1] .= zero(Basic)
+    S.body[end,end] = one(Basic)
+    xvars = [vars; Basic("cc")]
+    init = initvec(xvars, S.params)
+    init[end,1:end-1] .= zero(Basic)
+    init[end,end] = one(Basic)
+    ctx = mkcontext(S.body, init, S.polys, xvars, S.params, roots)
     varmap, cstr = constraints(ctx)
     solver = T()
     NLSat.variables!(solver, varmap)
