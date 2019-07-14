@@ -5,9 +5,14 @@ using Latexify
 using MacroTools
 using Combinatorics
 using LinearAlgebra
+using MultivariatePolynomials
+using DynamicPolynomials
 using SymEngine
 using SymPy
 using Dates
+
+const Var = AbstractVariable
+const Poly = AbstractPolynomialLike
 
 include("nlsat.jl")
 
@@ -24,6 +29,7 @@ include("show.jl")
 include("report.jl")
 include("utils.jl")
 include("examples.jl")
+include("poly.jl")
 
 export synth, report, rerun
 
