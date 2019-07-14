@@ -6,9 +6,10 @@ export value
 # ------------------------------------------------------------------------------
 
 struct Loop
-    vars::Vector{Basic}
-    init::Vector{Basic}
-    body::Matrix{Basic}
+    vars::Vector{<:Var}
+    params::Vector{<:Poly}
+    init::Matrix{<:Number}
+    body::Matrix{<:Number}
 end
 
 value(l::Loop, k::Int) = l.body^k * l.init
@@ -56,12 +57,12 @@ function iterate(S::Solutions, state)
     status, elapsed, model = NLSat.solve(S.solver, timeout = S.info.timeout)
     if status == NLSat.sat
         ctx = S.info.ctx
-        A, B= ctx.init, ctx.body
+        A, B = ctx.init, ctx.body
         params = ctx.params
-        body = [get(model, Symbol(string(b)), b) for b in B]
-        init = [get(model, Symbol(string(b)), b) for b in A]
+        body = Number[get(model, Symbol(string(b)), b) for b in B]
+        init = Number[get(model, Symbol(string(b)), b) for b in A]
         next_constraints!(S.solver, model)
-        return SynthResult(Loop(ctx.vars, init*params, body), elapsed, S.info), state + 1
+        return SynthResult(Loop(ctx.vars, params, init, body), elapsed, S.info), state + 1
     end
     SynthResult(status, elapsed, S.info), nothing
 end
@@ -166,12 +167,12 @@ end
 
 function next_solution(S::Synthesizer{T}, next) where {T}
     roots, vars = next
-    S.body[end,1:end-1] .= zero(Basic)
-    S.body[end,end] = one(Basic)
-    xvars = [vars; Basic("cc")]
+    S.body[end,1:end-1] .= mkpoly(0)
+    S.body[end,end] = mkpoly(1)
+    xvars = [vars; mkvar("cc")]
     init = initvec(xvars, S.params)
-    init[end,1:end-1] .= zero(Basic)
-    init[end,end] = one(Basic)
+    init[end,1:end-1] .= mkpoly(0)
+    init[end,end] = mkpoly(1)
     ctx = mkcontext(S.body, init, S.polys, xvars, S.params, roots)
     varmap, cstr = constraints(ctx)
     solver = T()

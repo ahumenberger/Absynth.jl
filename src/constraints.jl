@@ -60,8 +60,8 @@ end
 
 to_expr(xs::Vector{Basic}) = map(x->convert(Expr, x), xs)
 
-eq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(==), convert(Expr, x), convert(Expr, y))
-ineq(x::Basic, y::Basic=zero(Basic)) = Expr(:call, :(!=), convert(Expr, x), convert(Expr, y))
+eq(x::Poly, y::Int=zero(Int)) = Expr(:call, :(==), Meta.parse(string(x)), Meta.parse(string(y)))
+ineq(x::Poly, y::Int=zero(Int)) = Expr(:call, :(!=), Meta.parse(string(x)), Meta.parse(string(y)))
 function or(xs::Expr...)
     if length(xs) == 1
         return xs[1]
@@ -76,19 +76,19 @@ gensym_unhashed(s::Symbol) = Symbol(replace(string(gensym(s)), "#"=>""))
 # ------------------------------------------------------------------------------
 
 struct SynthContext
-    polys::Vector{Basic}
-    vars::Vector{Basic}
-    params::Vector{Basic}
-    roots::Vector{Basic}
+    polys::Vector{<:Poly}
+    vars::Vector{<:Var}
+    params::Vector{<:Poly}
+    roots::Vector{<:Var}
     multi::Vector{Int}
-    body::Matrix{Basic}
-    init::Matrix{Basic}
-    lc::Basic
+    body::Matrix{<:Poly}
+    init::Matrix{<:Poly}
+    lc::Var
 end
 
-function mkcontext(body::Matrix{Basic}, init::Matrix{Basic}, polys::Vector{Basic}, vars::Vector{Basic}, params::Vector{Basic}, ms::Vector{Int})
-    rs, lc = symroot(length(ms)), Basic(gensym_unhashed(:n))
-    SynthContext(polys, vars, [params; one(Basic)], rs, ms, body, init, lc)
+function mkcontext(body::Matrix{<:Poly}, init::Matrix{<:Poly}, polys::Vector{<:Poly}, vars::Vector{<:Var}, params::Vector{<:Var}, ms::Vector{Int})
+    rs, lc = symroot(length(ms)), mkvar(gensym_unhashed(:n))
+    SynthContext(polys, vars, [params; mkpoly(1)], rs, ms, body, init, lc)
 end
 
 # ------------------------------------------------------------------------------
@@ -99,8 +99,8 @@ function raw_constraints(ctx::SynthContext)
     csinit   = cstr_init(ctx)
     csroots  = cstr_roots(ctx)
     csrel    = cstr_algrel(ctx)
-    equalities = [collect(Iterators.flatten(cscforms)); csinit; csroots; csrel]
-    @debug "Equality constraints" cscforms csinit csroots csrel
+    @info "Equality constraints" cscforms csinit csroots csrel
+    equalities = Poly[cscforms; csinit; csroots; csrel]
 
     # Inequality constraints
     csdistinct = cstr_distinct(ctx)
@@ -110,18 +110,21 @@ function raw_constraints(ctx::SynthContext)
     rs, ms = ctx.roots, ctx.multi
     t = length(ms)
     cs = Iterators.flatten(coeffvec(i, j, size(ctx.body, 1), params=ctx.params) for i in 1:t for j in 1:ms[i]) |> collect
-    cs = SymEngine.free_symbols(cs)
+    # cs = union(variables.(cs))
+    cs = reduce(union, map(variables, cs))
     cs = setdiff(cs, ctx.params)
-    bs = Iterators.flatten(ctx.body) |> collect
+    bs = reduce(union, map(variables, ctx.body))
+    @info "" rs cs bs
     vars = [cs; rs]
     varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
     for b in bs
-        if !isconstant(b)
+        # if !isconstant(b)
             push!(varmap, Symbol(string(b))=>AlgebraicNumber)
-        end
+        # end
     end
     for v in ctx.init
-        if !isconstant(v) && !(v in ctx.params)
+        # if !isconstant(v) && !(v in ctx.params)
+        if !(v in ctx.params)
             push!(varmap, Symbol(string(v))=>AlgebraicNumber)
         end
     end
@@ -172,37 +175,37 @@ end
 
 # ------------------------------------------------------------------------------
 
-function cforms(varcnt::Int, rs::Vector{Basic}, ms::Vector{Int}; lc::Basic, exp::Basic, params::Vector{Basic})
+function cforms(varcnt::Int, rs::Vector{<:Var}, ms::Vector{Int}; lc::Union{Int,Var}, exp::Int, params::Vector{<:Poly})
     t = length(rs)
     sum(coeffvec(i, j, varcnt, params=params) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
-function coeffvec(i::Int, j::Int, rows::Int; params::Vector{Basic})
+function coeffvec(i::Int, j::Int, rows::Int; params::Vector{<:Poly})
     nparams = length(params)
 
     # s = collect('c':'z')[i*j]
     # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
-    C = [Basic("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
+    C = [mkvar("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
     C * params
 end
 
-function initvec(vars::Vector{Basic}, params::Vector{Basic})
+function initvec(vars::Vector{<:Var}, params::Vector{<:Var})
     rows, cols = length(vars), length(params)+1
     baseparams = [map(basevar, params); 1]
-    A = zeros(Basic, rows, cols)
+    A = fill(mkpoly(1), (rows,cols))
 
     for i in 1:rows, j in 1:cols
         u, v = vars[i], baseparams[j]
         if u == v
             A[i,j] = j == findfirst(x->x==u, baseparams) ? 1 : 0
         else
-            A[i,j] = findfirst(x->x==u, baseparams) === nothing ? Basic("a$i$j") : 0
+            A[i,j] = findfirst(x->x==u, baseparams) === nothing ? mkvar("a$i$j") : 0
         end
     end
     A
 end
 
-symroot(n::Int) = [Basic("w$i") for i in 1:n]
+symroot(n::Int) = [mkvar("w$i") for i in 1:n]
 
 # ------------------------------------------------------------------------------
 
@@ -212,7 +215,8 @@ function cstr_cforms(ctx::SynthContext)
     t = length(ctx.roots)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
     Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=ctx.params) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=ctx.params) for i in 1:t for j in 1:ms[i]]
-    destructpoly(Iterators.flatten(Ds), ctx.params)
+    # @info "" Ds Iterators.flatten(Ds) |> collect
+    destructpoly(collect(Iterators.flatten(Ds)), ctx.params)
 end
 
 "Generate constraints defining the initial values."
@@ -221,10 +225,10 @@ function cstr_init(ctx::SynthContext)
     s = size(B, 1)
     d = sum(ms)
     A = ctx.init*ctx.params
-    cstr = Basic[]
+    cstr = Poly[]
     for i in 0:d-1
-        M = cforms(s, rs, ms, lc=Basic(i), exp=Basic(i), params=ctx.params)
-        X = B^i*A
+        M = cforms(s, rs, ms, lc=i, exp=i, params=ctx.params)
+        X = iszero(i) ? A : B^i*A
         append!(cstr, X - M)
     end
     destructpoly(cstr, ctx.params)
@@ -244,8 +248,13 @@ end
 "Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
 function cstr_roots(ctx::SynthContext)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
-    λ = Basic(gensym_unhashed(:x))
-    cpoly = det(UniformScaling(λ)-B)
+    λ = mkvar(gensym_unhashed(:x))
+    BB = copy(B)
+    for i in diagind(B)
+        BB[i] = λ - BB[i]
+    end
+    @info "" BB
+    cpoly = det(BB)
     factors = prod((λ - r)^m for (r, m) in zip(rs,ms))
     destructpoly(cpoly - factors, λ)
 end
@@ -260,7 +269,7 @@ function cstr_nonconstant(ctx::SynthContext)
     A, B = ctx.init*ctx.params, ctx.body
     cs = B * B * A - B * A
     # do not consider variables which only occurr as initial variable in polys
-    vars = SymEngine.free_symbols(ctx.polys)
+    vars = reduce(union, map(variables, ctx.polys))
     filter!(!isinitvar, vars)
     nonloopvars = setdiff(ctx.vars, vars)
     inds = [i for (i, v) in enumerate(ctx.vars) if !(v in vars)]
@@ -274,18 +283,19 @@ end
 function cstr_algrel(ctx::SynthContext)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
 
-    cfs = cforms(size(B, 1), rs, ms, lc=ctx.lc, exp=one(Basic), params=ctx.params)
+    cfs = cforms(size(B, 1), rs, ms, lc=ctx.lc, exp=1, params=ctx.params)
     dcfs = Dict(zip(ctx.vars, cfs))
 
     dinit = Dict(zip(map(initvar, ctx.vars), ctx.init*ctx.params))
 
-    cs = Basic[]
+    cs = Poly[]
     for p in ctx.polys
-        p = SymEngine.subs(p, dcfs..., dinit...)
+        p = MultivariatePolynomials.subs(p, dcfs..., dinit...)
+        @info "" p
         qs = destructpoly(p, ctx.lc)
         for (i, q) in enumerate(qs)
             ms, us = destructterm(q, rs)
-            @assert SymEngine.expand(sum(m*u for (m,u) in zip(ms,us))) == SymEngine.expand(q) "Factorization bug"
+            @assert sum(m*u for (m,u) in zip(ms,us)) == q "Factorization bug"
             l = length(ms)
             if all(isone, ms)
                 l = 1
@@ -299,30 +309,33 @@ end
 
 # ------------------------------------------------------------------------------
 
-destructpoly(p::Basic, var::Basic) = coeffs(p, var)
-destructpoly(p::Basic, var::Basic, left::Basic...) = 
+coeffs(p::Poly, v::Var) = [coefficient(p, v^i, [v]) for i in 0:maxdegree(p, v)]
+
+destructpoly(p::Poly, var::Var) = coeffs(p, var)
+destructpoly(p::Poly, var::Var, left::Var...) = 
     reduce(union, map(x->destructpoly(x, left...), coeffs(p, var)))
 
-function destructpoly(ps, vars::Vector{Basic})
-    xvars = SymEngine.free_symbols(vars)
+function destructpoly(ps, vars)
+    xvars = filter(x->isa(x, Var), vars)
     isempty(xvars) ? ps : reduce(union, map(x->destructpoly(x, xvars...), ps))
 end
 
-function destructterm(p::Basic, rs::Vector{Basic})
-    ms = Basic[]
-    cs = Basic[]
-    for term in summands(p)
-        ds = [degree(term, r) for r in rs]
+function destructterm(p::Poly, rs::Vector{<:Var})
+    ms = Poly[]
+    cs = Poly[]
+    for term in terms(p)
+        ds = [maxdegree(term, r) for r in rs]
         m = prod(r^d for (r,d) in zip(rs,ds))
-        c = term / m
+        c = div(term, m)
+        @info "" m c
         push!(ms, m)
         push!(cs, c)
     end
     factor(ms, cs)
 end
 
-function factor(ms::Vector{Basic}, us::Vector{Basic})
-    map = Dict{Basic,Basic}()
+function factor(ms::Vector{<:Poly}, us::Vector{<:Poly})
+    map = Dict{Poly,Poly}()
     for (m,u) in zip(ms,us)
         if haskey(map, m)
             map[m] += u
