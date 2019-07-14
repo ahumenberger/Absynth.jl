@@ -74,10 +74,10 @@ end
 # ------------------------------------------------------------------------------
 
 struct Synthesizer{T <: NLSolver}
-    body::Matrix{Basic}
-    polys::Vector{Basic}
-    vars::Vector{Basic}
-    params::Vector{Basic}
+    body::Matrix{<:Poly}
+    polys::Vector{<:Poly}
+    vars::Vector{<:Var}
+    params::Vector{<:Var}
     shape::MatrixShape
     maxsol::Number
     trivial::Bool
@@ -86,17 +86,17 @@ struct Synthesizer{T <: NLSolver}
 end
 
 function synth(polys; kwargs...)
-    polys = map(Basic, polys)
+    polys = map(mkpoly, polys)
 
     solver  = get(kwargs, :solver, Yices)
     timeout = get(kwargs, :timeout, 10)
     maxsol  = get(kwargs, :maxsol, 1)
     trivial = get(kwargs, :trivial, false)
 
-    syms = SymEngine.free_symbols(polys)
+    syms = variables(polys)
     xparams, xvars = filtervars(syms)
-    vars   = map(Basic, get(kwargs, :vars, xvars))
-    params = map(Basic, get(kwargs, :params, xparams))
+    vars   = map(mkvar, get(kwargs, :vars, xvars))
+    params = map(mkvar, get(kwargs, :params, xparams))
     @assert issubset(xvars, vars) "Variables in polys ($(xvars)) not a subset of given variables ($(vars))"
 
     shape = get(kwargs, :shape, full)
@@ -104,7 +104,7 @@ function synth(polys; kwargs...)
     perm = get(kwargs, :perm, shape in (uni, upper))
     perm_iter = perm ? permutations(copy(vars)) : [copy(vars)]
     # add dimension for constant 1
-    push!(vars, Basic(:cc))
+    push!(vars, mkvar(:cc))
 
     dims = length(vars)
     body = dynamicsmatrix(dims, shape)

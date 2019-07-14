@@ -36,22 +36,22 @@ function dynamicsmatrix(size::Int, shape::MatrixShape)
     T = Basic
     if shape == full
         # full
-        B = [T("b$i$j") for i in 1:size, j in 1:size]
+        B = [mkvar("b$i$j") for i in 1:size, j in 1:size]
     elseif shape == upper
         # upper triangular
-        B = [j>=i ? T("b$i$j") : zero(T) for i in 1:size, j in 1:size]
+        B = [j>=i ? mkvar("b$i$j") : mkpoly(0) for i in 1:size, j in 1:size]
     elseif shape == uni
         # unitriangular
-        B = [j>i ? T("b$i$j") : i==j ? one(T) : zero(T) for i in 1:size, j in 1:size]
+        B = [j>i ? mkvar("b$i$j") : i==j ? mkpoly(1) : mkpoly(0) for i in 1:size, j in 1:size]
     end
     B
 end
 
-initvar(s::T) where {T<:Union{Symbol,Basic}} = T("$(string(s))00")
-isinitvar(s::Union{Symbol,Basic}) = endswith(string(s), "00")
-basevar(s::Union{Symbol,Basic}) = isinitvar(s) ? Basic(string(s)[1:end-2]) : s
+initvar(s::T) where {T<:Union{Symbol,Var}} = T("$(string(s))00")
+isinitvar(s::Union{Symbol,Var}) = endswith(string(s), "00")
+basevar(s::Union{Symbol,Var}) = isinitvar(s) ? mkvar(string(s)[1:end-2]) : s
 
-function filtervars(fs::Vector{Basic})
+function filtervars(fs::Vector{<:Var})
     init = filter(isinitvar, fs)
     init, unique(map(basevar, fs))
 end
