@@ -1,39 +1,6 @@
-
-import SymEngine.Basic
-import SymPy.Sym
-
-SymPy.Sym(x::Basic) = sympify(string(x))
-SymEngine.Basic(x::SymPy.Sym) = Basic(string(x))
-
-if SymEngine.libversion >= VersionNumber(0,4) && false
-    function coeffs(ex::Basic, x::Basic)
-        d = degree(ex, x)
-        ex = SymEngine.expand(ex)
-        out = [coeff(ex, x, Basic(i)) for i in d:-1:0]
-        out
-    end
-else
-    function coeffs(ex::Basic, x::Basic)
-        Basic.(sympy.Poly(Sym(ex), Sym(x)).coeffs())
-    end
-end
-
-function degree(ex::Basic, x::Basic)
-    convert(Int, SymPy.degree(Sym(ex), gen=Sym(x)))
-end
-
-function simplify(x::Basic)
-    Basic(SymPy.simplify(Sym(x)))
-end
-
-isconstant(x::Basic) = isempty(SymEngine.free_symbols(x))
-
-# ------------------------------------------------------------------------------
-
 @enum MatrixShape full upper uni
 
 function dynamicsmatrix(size::Int, shape::MatrixShape)
-    T = Basic
     if shape == full
         # full
         B = [mkvar("b$i$j") for i in 1:size, j in 1:size]
@@ -234,9 +201,7 @@ function cstr_init(ctx::SynthContext)
     destructpoly(cstr, ctx.params)
 end
 
-# LinearAlgebra.det(m::Matrix{Basic}) = det(convert(SymEngine.CDenseMatrix, m))
-
-function LinearAlgebra.det(M::Matrix{Basic}) 
+function LinearAlgebra.det(M::Matrix{<:Poly}) 
     m = size(M, 1)
     if m > 2
         return sum((-1)^(i-1) * M[i,1] *  det(M[1:end .!= i, 2:end]) for i in 1:m)
