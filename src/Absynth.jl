@@ -7,8 +7,6 @@ using Combinatorics
 using LinearAlgebra
 using MultivariatePolynomials
 using DynamicPolynomials
-using SymEngine
-using SymPy
 using Dates
 
 const Var = AbstractVariable

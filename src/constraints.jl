@@ -25,7 +25,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-to_expr(xs::Vector{Basic}) = map(x->convert(Expr, x), xs)
+# to_expr(xs::Vector{Basic}) = map(x->convert(Expr, x), xs)
 
 eq(x::Poly, y::Int=zero(Int)) = Expr(:call, :(==), Meta.parse(string(x)), Meta.parse(string(y)))
 ineq(x::Poly, y::Int=zero(Int)) = Expr(:call, :(!=), Meta.parse(string(x)), Meta.parse(string(y)))
@@ -201,14 +201,14 @@ function cstr_init(ctx::SynthContext)
     destructpoly(cstr, ctx.params)
 end
 
-function LinearAlgebra.det(M::Matrix{<:Poly}) 
-    m = size(M, 1)
-    if m > 2
-        return sum((-1)^(i-1) * M[i,1] *  det(M[1:end .!= i, 2:end]) for i in 1:m)
-    else
-        return M[1,1] * M[2,2] - M[2,1] * M[1,2]
-    end
-end
+# function LinearAlgebra.det(M::Matrix{<:Poly}) 
+#     m = size(M, 1)
+#     if m > 2
+#         return sum((-1)^(i-1) * M[i,1] *  det(M[1:end .!= i, 2:end]) for i in 1:m)
+#     else
+#         return M[1,1] * M[2,2] - M[2,1] * M[1,2]
+#     end
+# end
 
 "Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
 function cstr_roots(ctx::SynthContext)
@@ -311,7 +311,7 @@ function factor(ms::Vector{<:Poly}, us::Vector{<:Poly})
     keys(map), Base.values(map)
 end
 
-function summands(x::Basic)
-    args = get_args(SymEngine.expand(x))
-    sum(args) == x ? args : x
-end
+# function summands(x::Basic)
+#     args = get_args(SymEngine.expand(x))
+#     sum(args) == x ? args : x
+# end
