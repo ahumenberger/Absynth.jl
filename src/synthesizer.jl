@@ -74,6 +74,32 @@ end
 
 # ------------------------------------------------------------------------------
 
+struct VarPerm
+    vars::Vector{<:Var}
+    one::Var # constant 1
+
+    VarPerm(vars::Vector{<:Var}, one::Var=mkvar(:cc)) = new(vars, one)
+end
+
+function iterate(V::VarPerm)
+    P = permutations(V.vars)
+    _iterate(V, P, iterate(P))
+end
+
+function _iterate(V::VarPerm, P, next)
+    next === nothing && return nothing
+    perm, state = next
+    [perm; V.one], (P, state)
+end
+
+function iterate(V::VarPerm, next)
+    next === nothing && return nothing
+    P, state = next
+    _iterate(V, P, iterate(P, state))
+end
+
+# ------------------------------------------------------------------------------
+
 struct Synthesizer{T <: NLSolver}
     body::Matrix{<:Poly}
     polys::Vector{<:Poly}
@@ -102,10 +128,11 @@ function synth(polys; kwargs...)
 
     shape = get(kwargs, :shape, full)
     # permutations of variables without dimension for constant 1
+    constone = mkvar(:cc)
     perm = get(kwargs, :perm, shape in (uni, upper))
-    perm_iter = perm ? permutations(copy(vars)) : [copy(vars)]
+    perm_iter = perm ? VarPerm(copy(vars), constone) : [[copy(vars); constone]]
     # add dimension for constant 1
-    push!(vars, mkvar(:cc))
+    push!(vars, constone)
 
     dims = length(vars)
     body = dynamicsmatrix(dims, shape)
@@ -169,11 +196,11 @@ function next_solution(S::Synthesizer{T}, next) where {T}
     roots, vars = next
     S.body[end,1:end-1] .= mkpoly(0)
     S.body[end,end] = mkpoly(1)
-    xvars = [vars; mkvar("cc")]
-    init = initvec(xvars, S.params)
+    # xvars = [vars; mkvar("cc")]
+    init = initvec(vars, S.params)
     init[end,1:end-1] .= mkpoly(0)
     init[end,end] = mkpoly(1)
-    ctx = mkcontext(S.body, init, S.polys, xvars, S.params, roots)
+    ctx = mkcontext(S.body, init, S.polys, vars, S.params, roots)
     varmap, cstr = constraints(ctx)
     solver = T()
     NLSat.variables!(solver, varmap)
