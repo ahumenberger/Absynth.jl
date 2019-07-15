@@ -15,6 +15,23 @@ end
 value(l::Loop, k::Int) = l.body^k * l.init
 value(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 
+function sequentialize(M::Matrix, v::Vector)
+    M, v
+end
+
+function code(l::Loop)
+    body, vars = sequentialize(l.body, l.vars)
+    lhss = (Meta.parse ∘ string).(body * vars)
+    init = [:($rhs = $lhs) for (rhs,lhs) in zip(l.vars, l.init*l.params)]
+    assign = [:($rhs = $lhs) for (rhs,lhs) in zip(vars, lhss)]
+    MacroTools.striplines(quote
+        $(init...)
+        while true
+            $(assign...)
+        end
+    end)
+end
+
 # ------------------------------------------------------------------------------
 
 struct SynthInfo
