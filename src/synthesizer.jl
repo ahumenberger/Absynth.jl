@@ -147,8 +147,8 @@ function synthfirst(polys; kwargs...)
 
     maxauxvars = get(kwargs, :maxauxvars, 1)
 
-    polys = map(Basic, polys)
-    syms = SymEngine.free_symbols(polys)
+    polys = map(mkpoly, polys)
+    syms = variables(polys)
     _, vars = filtervars(syms)
     args = Dict(collect(kwargs))
     progress = ProgressUnknown("Tries:")
