@@ -66,8 +66,8 @@ function raw_constraints(ctx::SynthContext)
     csinit   = cstr_init(ctx)
     csroots  = cstr_roots(ctx)
     csrel    = cstr_algrel(ctx)
-    @info "Equality constraints" cscforms csinit csroots csrel
     equalities = Poly[cscforms; csinit; csroots; csrel]
+    @debug "Equality constraints" cscforms csinit csroots csrel
 
     # Inequality constraints
     csdistinct = cstr_distinct(ctx)
@@ -81,7 +81,6 @@ function raw_constraints(ctx::SynthContext)
     cs = reduce(union, map(variables, cs))
     cs = setdiff(cs, ctx.params)
     bs = reduce(union, map(variables, ctx.body))
-    @info "" rs cs bs
     vars = [cs; rs]
     varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
     for b in bs
@@ -182,7 +181,6 @@ function cstr_cforms(ctx::SynthContext)
     t = length(ctx.roots)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
     Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=ctx.params) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=ctx.params) for i in 1:t for j in 1:ms[i]]
-    # @info "" Ds Iterators.flatten(Ds) |> collect
     destructpoly(collect(Iterators.flatten(Ds)), ctx.params)
 end
 
@@ -218,7 +216,6 @@ function cstr_roots(ctx::SynthContext)
     for i in diagind(B)
         BB[i] = λ - BB[i]
     end
-    @info "" BB
     cpoly = det(BB)
     factors = prod((λ - r)^m for (r, m) in zip(rs,ms))
     destructpoly(cpoly - factors, λ)
@@ -256,7 +253,6 @@ function cstr_algrel(ctx::SynthContext)
     cs = Poly[]
     for p in ctx.polys
         p = MultivariatePolynomials.subs(p, dcfs..., dinit...)
-        @info "" p
         qs = destructpoly(p, ctx.lc)
         for (i, q) in enumerate(qs)
             ms, us = destructterm(q, rs)
@@ -292,7 +288,6 @@ function destructterm(p::Poly, rs::Vector{<:Var})
         ds = [maxdegree(term, r) for r in rs]
         m = prod(r^d for (r,d) in zip(rs,ds))
         c = div(term, m)
-        @info "" m c
         push!(ms, m)
         push!(cs, c)
     end
