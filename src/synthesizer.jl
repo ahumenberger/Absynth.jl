@@ -139,6 +139,30 @@ struct Synthesizer{T <: NLSolver}
     iterators::Vector{Any}
 end
 
+using Printf
+
+synthparams = [
+    (
+        :solver, :NLSolver, :Yices,
+        "Solver"
+    ),
+    (
+        :timeout, :Int, 10,
+        "Timeout in seconds"
+    )
+]
+
+synthparamstr = 
+    [Printf.@sprintf("- `%s::%s=%s`: %s", arg...) for arg in synthparams]
+
+"""
+    @synth invariant <keyword_arguments>
+
+Synthesis of loops
+
+# Arguments
+$(join(synthparamstr, "\n"))
+"""
 function synth(polys; kwargs...)
     polys = map(mkpoly, polys)
 
