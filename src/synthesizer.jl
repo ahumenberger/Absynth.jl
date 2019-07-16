@@ -16,7 +16,17 @@ value(l::Loop, k::Int) = l.body^k * l.init
 value(l::Loop, r::UnitRange{Int}) = [value(l, k) for k in r]
 
 function sequentialize(M::Matrix, v::Vector)
-    M, v
+    LinearAlgebra.istriu(M) && return M, v
+    h = size(M, 2)
+    V = [mkvar("_" * string(x)) for x in v]
+    V = [V; v]
+    tl = zeros(Int, h, h)
+    tr = UniformScaling(1)
+    bl = LowerTriangular(M) - Diagonal(M)
+    br = M - bl
+    B = vcat(hcat(tl, tr), hcat(bl, br))
+    zcols = findall(iszero, collect(eachcol(B)))
+    B[setdiff(1:end, zcols), setdiff(1:end, zcols)], V[setdiff(1:end, zcols)]
 end
 
 function code(l::Loop)
