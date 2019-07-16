@@ -92,35 +92,3 @@ end
 # ------------------------------------------------------------------------------
 
 Base.show(io::IO, s::NLSolver) = print(io, typeof(s))
-
-# ------------------------------------------------------------------------------
-
-# Base.summary(io::IO, s::Synthesizer{T}) where {T} =
-#     print(io, "Synthesizer for $(s.polys)")
-# # Base.summary(io::IO, s::MultiSynthesizer{T}) where {T} =
-# #     print(io, "Synthesizer for $(s.synth.polys) and at most $(s.maxsol) solutions")
-
-# function Base.show(io::IO, s::Synthesizer{T}) where {T}
-#     compact = get(io, :compact, false)
-
-#     print(io, "Synthesizer for $(s.polys)")
-#     if !compact
-#         println(io, " with options:")
-#         println(io, "Solver\t: $(T)")
-#         println(io, "Vars\t: $(s.vars)")
-#         println(io, "Shape\t: $(s.shape)")
-#         println(io, "Timeout\t: $(s.timeout) s")
-#     end
-# end
-
-# function Base.show(io::IO, s::MultiSynthesizer{T}) where {T}
-#     compact = get(io, :compact, false)
-
-#     summary(io, s)
-
-#     # if compact
-#     #     println(io, " and at most $(s.maxsol) solutions")
-#     # else
-#     #     println(io, "Maxsol\t: $(s.maxsol)")
-#     # end
-# end

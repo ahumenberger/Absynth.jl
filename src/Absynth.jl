@@ -41,11 +41,4 @@ export latex_logger
 
 # ------------------------------------------------------------------------------
 
-# atoms(f, ex) = MacroTools.postwalk(x -> x isa Symbol && Base.isidentifier(x) ? f(x) : x, ex)
-# function free_symbols(ex::Expr)
-#     ls = Symbol[]
-#     atoms(x -> (push!(ls, x); x), ex)
-#     Base.unique(ls)
-# end
-
 end # module
