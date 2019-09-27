@@ -2,7 +2,7 @@ module Absynth
 
 using Logging
 using Latexify
-using MacroTools
+using MacroTools: walk, postwalk
 using Combinatorics
 using LinearAlgebra
 using MultivariatePolynomials
@@ -28,6 +28,8 @@ include("report.jl")
 include("utils.jl")
 include("examples.jl")
 include("poly.jl")
+include("types.jl")
+include("clauseset.jl")
 
 export synth, report, rerun
 
