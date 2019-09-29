@@ -10,10 +10,10 @@ export @synth, @synthfirst
 
 macro synth(ps, kwargs...)
     args = [esc(a) for a in kwargs]
-    :(Iterators.Stateful(synth($(parseformula(ps)); $(args...))))
+    :(Iterators.Stateful(synth($(Invariant(ps)); $(args...))))
 end
 
 macro synthfirst(ps, kwargs...)
     args = [esc(a) for a in kwargs]
-    :(synthfirst($(parseformula(ps)); $(args...)))
+    :(synthfirst($(Invariant(ps)); $(args...)))
 end

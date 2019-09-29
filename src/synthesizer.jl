@@ -129,7 +129,7 @@ end
 
 struct Synthesizer{T <: NLSolver}
     body::Matrix{<:Poly}
-    polys::Vector{<:Poly}
+    inv::Invariant
     vars::Vector{<:Var}
     params::Vector{<:Var}
     shape::MatrixShape
@@ -163,15 +163,15 @@ Synthesis of loops
 # Arguments
 $(join(synthparamstr, "\n"))
 """
-function synth(polys; kwargs...)
-    polys = map(mkpoly, polys)
+function synth(inv::Invariant; kwargs...)
+    # polys = map(mkpoly, polys)
 
     solver  = get(kwargs, :solver, Yices)
     timeout = get(kwargs, :timeout, 10)
     maxsol  = get(kwargs, :maxsol, 1)
     trivial = get(kwargs, :trivial, false)
 
-    syms = variables(polys)
+    syms = map(mkvar, variables(inv))
     xparams, xvars = filtervars(syms)
     vars   = map(mkvar, get(kwargs, :vars, xvars))
     params = map(mkvar, get(kwargs, :params, xparams))
@@ -191,15 +191,15 @@ function synth(polys; kwargs...)
 
     iters = [Iterators.product(part_iter, perm_iter)]
 
-    Synthesizer{solver}(body, polys, vars, params, shape, maxsol, trivial, timeout, iters)
+    Synthesizer{solver}(body, inv, vars, params, shape, maxsol, trivial, timeout, iters)
 end
 
-function synthfirst(polys; kwargs...)
+function synthfirst(inv::Invariant; kwargs...)
 
     maxauxvars = get(kwargs, :maxauxvars, 1)
 
-    polys = map(mkpoly, polys)
-    syms = variables(polys)
+    # polys = map(mkpoly, polys)
+    syms = variables(inv)
     _, vars = filtervars(syms)
     args = Dict(collect(kwargs))
     progress = ProgressUnknown("Tries:")
@@ -207,7 +207,7 @@ function synthfirst(polys; kwargs...)
         push!(vars, gensym_unhashed(:t))
         args[:vars] = vars
         args[:timeout] = 1
-        synthesizer = synth(polys; args...)
+        synthesizer = synth(inv; args...)
         for sol in synthesizer
             issat(sol) && return sol
             next!(progress)
@@ -251,7 +251,7 @@ function next_solution(S::Synthesizer{T}, next) where {T}
     init = initvec(vars, S.params)
     init[end,1:end-1] .= mkpoly(0)
     init[end,end] = mkpoly(1)
-    ctx = mkcontext(S.body, init, S.polys, vars, S.params, roots)
+    ctx = mkcontext(S.body, init, S.inv, vars, S.params, roots)
     varmap, cstr = constraints(ctx)
     solver = T()
     NLSat.variables!(solver, varmap)

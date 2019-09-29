@@ -1,6 +1,6 @@
 
 issymbol(x) = x isa Symbol && Base.isidentifier(x)
-symbols(f, ex) = MacroTools.postwalk(x -> issymbol(x) ? f(x) : x, ex)
+symbols(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
 
 # ------------------------------------------------------------------------------
 

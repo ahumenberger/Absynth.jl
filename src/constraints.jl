@@ -18,7 +18,7 @@ initvar(s::T) where {T<:Union{Symbol,Var}} = T("$(string(s))00")
 isinitvar(s::Union{Symbol,Var}) = endswith(string(s), "00")
 basevar(s::Union{Symbol,Var}) = isinitvar(s) ? mkvar(string(s)[1:end-2]) : s
 
-function filtervars(fs::Vector{<:Var})
+function filtervars(fs)
     init = filter(isinitvar, fs)
     init, unique(map(basevar, fs))
 end
@@ -38,12 +38,12 @@ function or(xs::Expr...)
     return Expr(:(||), xs[1], or(xs[2:end]...))
 end
 
-gensym_unhashed(s::Symbol) = Symbol(replace(string(gensym(s)), "#"=>""))
+gensym_unhashed(s::Symbol) = Symbol(Base.replace(string(gensym(s)), "#"=>""))
 
 # ------------------------------------------------------------------------------
 
 struct SynthContext
-    polys::Vector{<:Poly}
+    inv::Invariant
     vars::Vector{<:Var}
     params::Vector{<:Poly}
     roots::Vector{<:Var}
@@ -53,9 +53,9 @@ struct SynthContext
     lc::Var
 end
 
-function mkcontext(body::Matrix{<:Poly}, init::Matrix{<:Poly}, polys::Vector{<:Poly}, vars::Vector{<:Var}, params::Vector{<:Var}, ms::Vector{Int})
-    rs, lc = symroot(length(ms)), mkvar(gensym_unhashed(:n))
-    SynthContext(polys, vars, [params; mkpoly(1)], rs, ms, body, init, lc)
+function mkcontext(body::Matrix{<:Poly}, init::Matrix{<:Poly}, inv::Invariant, vars::Vector{<:Var}, params::Vector{<:Var}, ms::Vector{Int})
+    rs, lc = symroot(length(ms)), mkvar(inv.lc)
+    SynthContext(inv, vars, [params; mkpoly(1)], rs, ms, body, init, lc)
 end
 
 # ------------------------------------------------------------------------------
@@ -66,8 +66,8 @@ function raw_constraints(ctx::SynthContext)
     csinit   = cstr_init(ctx)
     csroots  = cstr_roots(ctx)
     csrel    = cstr_algrel(ctx)
-    equalities = Poly[cscforms; csinit; csroots; csrel]
-    @debug "Equality constraints" cscforms csinit csroots csrel
+    @info "Equality constraints" cscforms csinit csroots csrel
+    equalities = cscforms & csinit & csroots & csrel
 
     # Inequality constraints
     csdistinct = cstr_distinct(ctx)
@@ -180,7 +180,9 @@ function cstr_cforms(ctx::SynthContext)
     t = length(ctx.roots)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
     Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=ctx.params) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=ctx.params) for i in 1:t for j in 1:ms[i]]
-    destructpoly(collect(Iterators.flatten(Ds)), ctx.params)
+    ps = destructpoly(collect(Iterators.flatten(Ds)), ctx.params)
+    @info "" ps map(Clause ∘ Constraint{EQ}, ps)
+    ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
 "Generate constraints defining the initial values."
@@ -195,7 +197,8 @@ function cstr_init(ctx::SynthContext)
         X = iszero(i) ? A : B^i*A
         append!(cstr, X - M)
     end
-    destructpoly(cstr, ctx.params)
+    ps = destructpoly(cstr, ctx.params)
+    ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
 # function LinearAlgebra.det(M::Matrix{<:Poly}) 
@@ -217,11 +220,15 @@ function cstr_roots(ctx::SynthContext)
     end
     cpoly = det(BB)
     factors = prod((λ - r)^m for (r, m) in zip(rs,ms))
-    destructpoly(cpoly - factors, λ)
+    ps = destructpoly(cpoly - factors, λ)
+    ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
 "Generate constraints ensuring that the elements of rs are distinct."
-cstr_distinct(ctx::SynthContext) = [r1-r2 for (r1,r2) in combinations(ctx.roots, 2)]
+function cstr_distinct(ctx::SynthContext)
+    ps = [r1-r2 for (r1,r2) in combinations(ctx.roots, 2)]
+    ClauseSet(map(Clause ∘ Constraint{NEQ}, ps))
+end
 
 # ------------------------------------------------------------------------------
 
@@ -230,7 +237,7 @@ function cstr_nonconstant(ctx::SynthContext)
     A, B = ctx.init*ctx.params, ctx.body
     cs = B * B * A - B * A
     # do not consider variables which only occurr as initial variable in polys
-    vars = reduce(union, map(variables, ctx.polys))
+    vars = variables(ctx.inv)
     filter!(!isinitvar, vars)
     nonloopvars = setdiff(ctx.vars, vars)
     inds = [i for (i, v) in enumerate(ctx.vars) if !(v in vars)]
@@ -240,70 +247,74 @@ end
 
 # ------------------------------------------------------------------------------
 
+function coeffvec2(i::Int, j::Int, varidx::Int; params::Vector{<:Poly})
+    nparams = length(params)
+
+    # s = collect('c':'z')[i*j]
+    # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
+    C = sum(mkvar("c$i$j$(varidx)$l") * p for (l,p) in enumerate(params))
+    @info "" C
+    C
+    # @info "" C * params
+    # C .* params
+end
+
+# function cforms(varcnt::Int, rs::Vector{<:Var}, ms::Vector{Int}; lc::Union{Int,Var}, exp::Int, params::Vector{<:Poly})
+function closed_form(ctx::SynthContext, func, arg)
+    rs, ms, lc = ctx.roots, ctx.multi, ctx.lc
+    lcvar = Symbol(string(ctx.lc))
+    var = mkvar(func)
+    idx = findfirst(x->x==var, ctx.vars)
+    nroots = length(rs)
+    parg = mkpoly(arg)
+    pairs = [replacement_pair(NExp{lcvar}(rs[i], parg)) for i in 1:nroots]
+    poly = sum(coeffvec2(i, j, idx, params=ctx.params) * first(pairs[i]) * parg^(j-1) for i in 1:nroots for j in 1:ms[i])
+    CFiniteExpr{lcvar}(poly, Dict(pairs))
+end
+
 "Generate constraints ensuring that p is an algebraic relation."
 function cstr_algrel(ctx::SynthContext)
-    B, rs, ms = ctx.body, ctx.roots, ctx.multi
+    # B, rs, ms = ctx.body, ctx.roots, ctx.multi
 
-    cfs = cforms(size(B, 1), rs, ms, lc=ctx.lc, exp=1, params=ctx.params)
-    dcfs = Dict(zip(ctx.vars, cfs))
-
-    dinit = Dict(zip(map(initvar, ctx.vars), ctx.init*ctx.params))
-
-    cs = Poly[]
-    for p in ctx.polys
-        p = MultivariatePolynomials.subs(p, dcfs..., dinit...)
-        qs = destructpoly(p, ctx.lc)
-        for (i, q) in enumerate(qs)
-            ms, us = destructterm(q, rs)
-            @assert sum(m*u for (m,u) in zip(ms,us)) == q "Factorization bug"
-            l = length(ms)
-            if all(isone, ms)
-                l = 1
-            end
-            c = [sum(m^j*u for (m,u) in zip(ms,us)) for j in 0:l-1]
-            append!(cs, c)
+    res = constraint_walk(ctx.inv) do poly
+        @info "" poly
+        expr = function_walk(poly) do func, args
+            @info "" func args
+            @assert length(args) == 1 "Invariant not properly preprocessed"
+            :($(closed_form(ctx, func, args[1])))
         end
+        cfin = eval(expr)
+        @info "" cfin
+        cstr = constraints(cfin; split_vars=Any[ctx.params; ctx.lc])
+        @info "" cstr [ctx.params; ctx.lc]
+        :($cstr)
     end
-    destructpoly(cs, ctx.params)
+    eval(res)
+    # cfs = cforms(size(B, 1), rs, ms, lc=ctx.lc, exp=1, params=ctx.params)
+    # dcfs = Dict(zip(ctx.vars, cfs))
+
+    # dinit = Dict(zip(map(initvar, ctx.vars), ctx.init*ctx.params))
+
+    # cs = Poly[]
+    # for p in ctx.polys
+    #     p = MultivariatePolynomials.subs(p, dcfs..., dinit...)
+    #     qs = destructpoly(p, ctx.lc)
+    #     for (i, q) in enumerate(qs)
+    #         ms, us = destructterm(q, rs)
+    #         @assert sum(m*u for (m,u) in zip(ms,us)) == q "Factorization bug"
+    #         l = length(ms)
+    #         if all(isone, ms)
+    #             l = 1
+    #         end
+    #         c = [sum(m^j*u for (m,u) in zip(ms,us)) for j in 0:l-1]
+    #         append!(cs, c)
+    #     end
+    # end
+    # destructpoly(cs, ctx.params)
 end
 
 # ------------------------------------------------------------------------------
 
-coeffs(p::Poly, v::Var) = [coefficient(p, v^i, [v]) for i in 0:maxdegree(p, v)]
-
-destructpoly(p::Poly, var::Var) = coeffs(p, var)
-destructpoly(p::Poly, var::Var, left::Var...) = 
-    reduce(union, map(x->destructpoly(x, left...), coeffs(p, var)))
-
-function destructpoly(ps, vars)
-    xvars = filter(x->isa(x, Var), vars)
-    isempty(xvars) ? ps : reduce(union, map(x->destructpoly(x, xvars...), ps))
-end
-
-function destructterm(p::Poly, rs::Vector{<:Var})
-    ms = Poly[]
-    cs = Poly[]
-    for term in terms(p)
-        ds = [maxdegree(term, r) for r in rs]
-        m = prod(r^d for (r,d) in zip(rs,ds))
-        c = div(term, m)
-        push!(ms, m)
-        push!(cs, c)
-    end
-    factor(ms, cs)
-end
-
-function factor(ms::Vector{<:Poly}, us::Vector{<:Poly})
-    map = Dict{Poly,Poly}()
-    for (m,u) in zip(ms,us)
-        if haskey(map, m)
-            map[m] += u
-        else
-            map[m] = u
-        end
-    end
-    keys(map), Base.values(map)
-end
 
 # function summands(x::Basic)
 #     args = get_args(SymEngine.expand(x))

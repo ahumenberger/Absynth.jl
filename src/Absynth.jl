@@ -2,7 +2,7 @@ module Absynth
 
 using Logging
 using Latexify
-using MacroTools: walk, postwalk
+using MacroTools: walk, postwalk, @capture, @match, replace
 using Combinatorics
 using LinearAlgebra
 using MultivariatePolynomials
@@ -21,6 +21,8 @@ const Z3 = Z3Solver
 
 export YicesSolver, Z3Solver, Yices, Z3
 
+include("types.jl")
+include("cfinite.jl")
 include("constraints.jl")
 include("synthesizer.jl")
 include("show.jl")
@@ -28,7 +30,6 @@ include("report.jl")
 include("utils.jl")
 include("examples.jl")
 include("poly.jl")
-include("types.jl")
 include("clauseset.jl")
 
 export synth, report, rerun

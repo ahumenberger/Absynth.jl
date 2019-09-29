@@ -12,11 +12,19 @@ _constraintrel_map = Dict(
 )
 
 struct Constraint{ConstraintRel}
-    poly::Expr
+    poly::Union{Expr,Symbol}
+
+    function Constraint{ConstraintRel}(x) where {ConstraintRel}
+        (x isa Expr || x isa Symbol) && return new{ConstraintRel}(x)
+        new{ConstraintRel}(Meta.parse(string(x)))
+    end
 end
 
 const Clause = Set{Constraint}
 const ClauseSet = Set{Clause}
+
+Clause(c::Constraint) = Clause([c])
+ClauseSet(c::Clause) = ClauseSet([c])
 
 Base.:~(c::Constraint{EQ}) = Constraint{NEQ}(c.poly)
 Base.:~(c::Constraint{NEQ}) = Constraint{EQ}(c.poly)
