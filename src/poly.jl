@@ -17,3 +17,4 @@ function mkvar(x::Symbol)
     v
 end
 
+MultivariatePolynomials.isconstant(p::AbstractPolynomialLike) = all(isconstant, terms(p))

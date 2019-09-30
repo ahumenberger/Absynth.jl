@@ -32,6 +32,15 @@ Base.:+(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly 
 Base.:-(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly - y.poly, merge(x.subs, y.subs))
 Base.:*(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly * y.poly, merge(x.subs, y.subs))
 
+Base.:+(x, y) = Base.:+(promote(x, y)...)
+Base.:-(x, y) = Base.:-(promote(x, y)...)
+Base.:*(x, y) = Base.:*(promote(x, y)...)
+
+Base.convert(::Type{CFiniteExpr{S}}, x::Number) where {S} = CFiniteExpr{S}(mkpoly(x), Dict{Var, NExp{S}}())
+
+Base.promote_rule(::Type{CFiniteExpr{S}}, ::Type{<:Number}) where {S} = CFiniteExpr{S}
+Base.promote_rule(::Type{<:Number}, ::Type{CFiniteExpr{S}}) where {S} = CFiniteExpr{S}
+
 function (expr::CFiniteExpr{S})(n::Int) where {S}
     s = mkvar(S)
     @info "" s n
