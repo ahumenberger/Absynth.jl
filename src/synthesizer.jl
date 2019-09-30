@@ -34,7 +34,7 @@ function code(l::Loop)
     lhss = (Meta.parse ∘ string).(body * vars)
     init = [:($rhs = $lhs) for (rhs,lhs) in zip(l.vars, l.init*l.params)]
     assign = [:($rhs = $lhs) for (rhs,lhs) in zip(vars, lhss)]
-    MacroTools.striplines(quote
+    striplines(quote
         $(init...)
         while true
             $(assign...)

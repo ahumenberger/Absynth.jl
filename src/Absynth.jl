@@ -2,7 +2,7 @@ module Absynth
 
 using Logging
 using Latexify
-using MacroTools: walk, postwalk, @capture, @match, replace
+using MacroTools: walk, postwalk, @capture, @match, replace, striplines
 using Combinatorics
 using LinearAlgebra
 using MultivariatePolynomials
