@@ -8,12 +8,10 @@ end
 
 symbol_walk(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
 
-atomwalk(f, x) = walk(x, x -> (@capture(x, y_(ys__)) && issymbol(y)) ? f(x) : atomwalk(f, x) , f)
+atom_walk(f, x) = walk(x, x -> (@capture(x, y_(ys__)) && issymbol(y)) ? f(x) : atom_walk(f, x) , f)
 
 issymbol(x) = x isa Symbol && Base.isidentifier(x)
-# symbols(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
 isfunction(x) = @capture(x, s_(xs__)) && s isa Symbol && Base.isidentifier(s)
-functions(f, ex) = postwalk(x -> isfunction(x) ? f(x) : x, ex)
 
 function symbols(x::Expr)
     ls = Symbol[]

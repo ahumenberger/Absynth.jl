@@ -1,9 +1,3 @@
-
-issymbol(x) = x isa Symbol && Base.isidentifier(x)
-# symbols(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
-
-# ------------------------------------------------------------------------------
-
 export mkvar, mkpoly
 
 mkpoly(x::Expr) = eval(symbol_walk(y->mkvar(y), x))

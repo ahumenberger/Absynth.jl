@@ -18,7 +18,7 @@ function _checksym(x, lc)
 end
 
 function preprocess_invariant(expr::Expr, lc::Symbol)
-    atomwalk(expr) do ex
+    atom_walk(expr) do ex
         @match ex begin
             x_ && y_ => :($x & $y)
             x_ || y_ => :($x | $y)
@@ -72,6 +72,3 @@ end
 
 constraint_walk(f, i::Invariant) = constraint_walk(f, i.x)
 function_walk(f, i::Invariant) = function_walk(f, i.x)
-
-# ------------------------------------------------------------------------------
-
