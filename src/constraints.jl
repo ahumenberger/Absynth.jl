@@ -66,14 +66,13 @@ function raw_constraints(ctx::SynthContext)
     csinit   = cstr_init(ctx)
     csroots  = cstr_roots(ctx)
     csrel    = cstr_algrel(ctx)
-    @info "Equality constraints" cscforms csinit csroots csrel
+    @debug "Equality constraints" cscforms csinit csroots csrel
     # Inequality constraints
     csdistinct = cstr_distinct(ctx)
     @debug "Inequality constraints" csdistinct
     pcp = cscforms & csinit & csroots & csrel & csdistinct
 
     vars = NLSat.variables(pcp)
-    @info "" vars
     varmap = convert(Dict{Symbol,Type}, Dict(v=>AlgebraicNumber for v in vars))
     @debug "Variables" varmap
 
@@ -133,7 +132,6 @@ function cstr_cforms(ctx::SynthContext)
     B, rs, ms = ctx.body, ctx.roots, ctx.multi
     Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=ctx.params) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=ctx.params) for i in 1:t for j in 1:ms[i]]
     ps = destructpoly(collect(Iterators.flatten(Ds)), ctx.params)
-    @info "" ps map(Clause ∘ Constraint{EQ}, ps)
     ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
@@ -205,10 +203,7 @@ function coeffvec2(i::Int, j::Int, varidx::Int; params::Vector{<:Poly})
     # s = collect('c':'z')[i*j]
     # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
     C = sum(mkvar("c$i$j$(varidx)$l") * p for (l,p) in enumerate(params))
-    @info "" C
     C
-    # @info "" C * params
-    # C .* params
 end
 
 # function cforms(varcnt::Int, rs::Vector{<:Var}, ms::Vector{Int}; lc::Union{Int,Var}, exp::Int, params::Vector{<:Poly})
@@ -226,43 +221,16 @@ end
 
 "Generate constraints ensuring that p is an algebraic relation."
 function cstr_algrel(ctx::SynthContext)
-    # B, rs, ms = ctx.body, ctx.roots, ctx.multi
-
     res = constraint_walk(ctx.inv) do poly
-        @info "" poly
         expr = function_walk(poly) do func, args
-            @info "" func args
             @assert length(args) == 1 "Invariant not properly preprocessed"
             :($(closed_form(ctx, func, args[1])))
         end
         cfin = eval(expr)
-        @info "" cfin
         cstr = constraints(cfin; split_vars=Any[ctx.params; ctx.lc])
-        @info "" cstr [ctx.params; ctx.lc]
         :($cstr)
     end
     eval(res)
-    # cfs = cforms(size(B, 1), rs, ms, lc=ctx.lc, exp=1, params=ctx.params)
-    # dcfs = Dict(zip(ctx.vars, cfs))
-
-    # dinit = Dict(zip(map(initvar, ctx.vars), ctx.init*ctx.params))
-
-    # cs = Poly[]
-    # for p in ctx.polys
-    #     p = MultivariatePolynomials.subs(p, dcfs..., dinit...)
-    #     qs = destructpoly(p, ctx.lc)
-    #     for (i, q) in enumerate(qs)
-    #         ms, us = destructterm(q, rs)
-    #         @assert sum(m*u for (m,u) in zip(ms,us)) == q "Factorization bug"
-    #         l = length(ms)
-    #         if all(isone, ms)
-    #             l = 1
-    #         end
-    #         c = [sum(m^j*u for (m,u) in zip(ms,us)) for j in 0:l-1]
-    #         append!(cs, c)
-    #     end
-    # end
-    # destructpoly(cs, ctx.params)
 end
 
 # ------------------------------------------------------------------------------

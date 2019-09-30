@@ -43,9 +43,7 @@ Base.promote_rule(::Type{<:Number}, ::Type{CFiniteExpr{S}}) where {S} = CFiniteE
 
 function (expr::CFiniteExpr{S})(n::Int) where {S}
     s = mkvar(S)
-    @info "" s n
     newsubs = Dict(k=>v(n) for (k,v) in expr.subs)
-    @info "" newsubs expr.subs
     MultivariatePolynomials.subs(expr.poly, newsubs...)
 end
 
@@ -63,7 +61,6 @@ function constraints(expr::CFiniteExpr{S}; split_vars=Var[]) where {S}
     cs = ClauseSet()
     # qs = map(x->CFiniteExpr{S}(x, expr.subs), destructpoly(expr.poly, split_vars))
     qs = destructpoly([expr.poly], split_vars)
-    @info "" expr.poly qs split_vars
     for (i, q) in enumerate(qs)
         cfin = CFiniteExpr{S}(q, expr.subs)
         l = order(cfin)
