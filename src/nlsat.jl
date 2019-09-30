@@ -99,6 +99,7 @@ end
 
 # ------------------------------------------------------------------------------
 
+prefix(x::Symbol) = string(x)
 function prefix(x::Expr)
     s = sprint(Meta.show_sexpr, x)
     s = Base.replace(s, ":call, " => "")

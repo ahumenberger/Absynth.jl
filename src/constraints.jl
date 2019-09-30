@@ -85,8 +85,7 @@ function constraints(ctx::SynthContext)
 end
 
 function constraints_opt(ctx::SynthContext)
-    ps = cstr_nonconstant(ctx)
-    ClauseSet(map(Clause ∘ Constraint{NEQ}, ps))
+    cstr_nonconstant(ctx)
 end
 
 # ------------------------------------------------------------------------------
@@ -188,11 +187,16 @@ function cstr_nonconstant(ctx::SynthContext)
     cs = B * B * A - B * A
     # do not consider variables which only occurr as initial variable in polys
     vars = program_variables(ctx.inv)
-    filter!(!isinitvar, vars)
+    # filter!(!isinitvar, vars)
     nonloopvars = setdiff(ctx.vars, vars)
-    inds = [i for (i, v) in enumerate(ctx.vars) if !(v in vars)]
+    inds = [i for (i, v) in enumerate(ctx.vars) if !(Symbol(string(v)) in vars)]
     deleteat!(cs, inds)
-    destructpoly(cs, ctx.params)
+    res = Clause()
+    for c in cs
+        ps = destructpoly([c], ctx.params)
+        res |= Clause(map(Constraint{NEQ}, ps))
+    end
+    ClauseSet(res)
 end
 
 # ------------------------------------------------------------------------------
