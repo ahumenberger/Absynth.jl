@@ -218,7 +218,7 @@ function _set_constraints(s::Z3Solver)
         clause = if length(cl) == 1
             :($(convert(Expr, first(cl))))
         else
-            :(z3.Or($([convert(Expr, c) for c in cl])))
+            :(z3.Or($([convert(Expr, c) for c in cl]...)))
         end
         expr = Expr(:block, ls..., clause)
         z3clause = eval(expr)
