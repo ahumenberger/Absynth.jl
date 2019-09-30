@@ -73,7 +73,7 @@ end
 function Base.show(io::IO, c::Clause)
     compact = get(io, :compact, false)
     if compact
-        print(io, collect(c))
+        print(io, string("[", join(c, ", "), "]"))
     else
         print(io, "$(length(c))-element Clause:")
         for x in c
