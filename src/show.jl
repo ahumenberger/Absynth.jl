@@ -56,7 +56,7 @@ function Base.show(io::IO, ::MIME"text/plain", l::Loop)
     vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", l.vars)), "\""=>"")
     vars2 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", l.vars)), "\""=>"")
     body = sprint(Base.print_matrix, l.body)
-    init = sprint(Base.print_matrix, l.init)
+    init = sprint(Base.print_matrix, l.init*l.params)
 
     lhs1 = (lstr, vars2, rstr)
     rhs1 = (lstr, body, rstr, lstr, vars1, rstr)
