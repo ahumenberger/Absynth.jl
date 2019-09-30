@@ -1,4 +1,6 @@
 export Constraint, Clause, ClauseSet
+export EQ, NEQ, LT, LEQ, GT, GEQ
+export variables
 
 @enum ConstraintRel EQ NEQ LT LEQ GT GEQ
 
@@ -56,6 +58,10 @@ Base.promote_rule(::Type{ClauseSet}, ::Type{Constraint{R}}) where {R} = ClauseSe
 Base.promote_rule(::Type{Constraint{R}}, ::Type{ClauseSet}) where {R} = ClauseSet
 Base.promote_rule(::Type{ClauseSet}, ::Type{Clause}) = ClauseSet
 Base.promote_rule(::Type{Clause}, ::Type{ClauseSet}) = ClauseSet
+
+variables(c::Constraint) = symbols(c.poly)
+variables(c::Clause) = union((variables(x) for x in c)...)
+variables(c::ClauseSet) = union((variables(x) for x in c)...)
 
 function Base.show(io::IO, c::Constraint{R}) where {R}
     print(io, c.poly)

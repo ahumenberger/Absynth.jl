@@ -95,8 +95,8 @@ function iterate(S::Solutions, state)
 end
 
 function next_constraints!(s::NLSolver, m::Model)
-    cs = [:($var != $val) for (var, val) in m]
-    constraints!(s, [or(cs...)])
+    cs = Clause([Constraint{NEQ}(:($var - $val)) for (var, val) in m])
+    constraints!(s, ClauseSet(cs))
 end
 
 # ------------------------------------------------------------------------------
@@ -171,7 +171,7 @@ function synth(inv::Invariant; kwargs...)
     maxsol  = get(kwargs, :maxsol, 1)
     trivial = get(kwargs, :trivial, false)
 
-    syms = map(mkvar, variables(inv))
+    syms = map(mkvar, program_variables(inv))
     xparams, xvars = filtervars(syms)
     vars   = map(mkvar, get(kwargs, :vars, xvars))
     params = map(mkvar, get(kwargs, :params, xparams))
@@ -199,7 +199,7 @@ function synthfirst(inv::Invariant; kwargs...)
     maxauxvars = get(kwargs, :maxauxvars, 1)
 
     # polys = map(mkpoly, polys)
-    syms = variables(inv)
+    syms = program_variables(inv)
     _, vars = filtervars(syms)
     args = Dict(collect(kwargs))
     progress = ProgressUnknown("Tries:")

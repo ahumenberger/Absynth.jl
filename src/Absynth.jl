@@ -21,16 +21,16 @@ const Z3 = Z3Solver
 
 export YicesSolver, Z3Solver, Yices, Z3
 
+include("utils.jl")
 include("types.jl")
 include("cfinite.jl")
 include("constraints.jl")
 include("synthesizer.jl")
 include("show.jl")
 include("report.jl")
-include("utils.jl")
-include("examples.jl")
 include("poly.jl")
-include("clauseset.jl")
+include("macros.jl")
+include("examples.jl")
 
 export synth, report, rerun
 

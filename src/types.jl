@@ -1,53 +1,6 @@
 
-export Invariant, variables
-export preprocess_invariant
-
-# abstract type Func end
-
-# struct VarFunc <: Func
-#     f::Symbol
-#     var::Symbol
-#     shift::Int
-# end
-
-# struct IntFunc <: Func
-#     f::Symbol
-#     arg::Int
-# end
-
-# struct Invariant
-#     poly::Union{Symbol,Expr}
-#     vmap::Dict{Symbol,Func}
-
-#     function Invariant(ex::Expr)
-#         d = Dict{Symbol,Func}()
-#         res = MacroTools.postwalk(ex) do x
-#             if @capture(x, f_(args__)) && Base.isidentifier(f)
-#                 @info "" x f args
-#                 length(args) != 1 && error("Too many arguments in $x")
-#                 var = gensym_unhashed(f)
-#                 if args[1] isa Int
-#                     fn = IntFunc(f, args[1])
-#                 else
-#                     poly = mkpoly(args[1])
-#                     vars = variables(poly)
-#                     length(vars) != 1 && error("Too many loop counters, got $vars")
-#                     shift = poly - vars[1]
-#                     fn = VarFunc(f, Symbol(string(vars[1])), shift)
-#                 end
-#                 push!(d, var=>fn)
-#                 return var
-#             end
-#             x
-#         end
-#         new(res, d)
-#     end
-# end
-
-issymbol(x) = x isa Symbol && Base.isidentifier(x)
-symbols(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
-isfunction(x) = @capture(x, s_(xs__)) && s isa Symbol && Base.isidentifier(s)
-functions(f, ex) = postwalk(x -> isfunction(x) ? f(x) : x, ex)
+# export Invariant, variables
+# export preprocess_invariant
 
 function _checkfunc(x, xs)
     x in [:(<), :(<=), :(>), :(>=)] && error("Only Boolean combinations of equalities allowed, got $x")
@@ -63,8 +16,6 @@ function _checksym(x, lc)
     issymbol(x) && x != lc && return :($x($lc))
     x
 end
-
-atomwalk(f, x) = walk(x, x -> (@capture(x, y_(ys__)) && issymbol(y)) ? f(x) : atomwalk(f, x) , f)
 
 function preprocess_invariant(expr::Expr, lc::Symbol)
     atomwalk(expr) do ex
@@ -82,17 +33,6 @@ function preprocess_invariant(expr::Expr, lc::Symbol)
         end
     end
 end
-
-constraint_walk(f, expr) = postwalk(expr) do x
-    @capture(x, p_ == 0) ? f(p) : x
-end
-
-function_walk(f, expr) = postwalk(expr) do x
-    @capture(x, g_(a__)) && issymbol(g) ? f(g, a) : x
-end
-
-symbol_walk(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
-
 
 function check_loop_counter(expr::Expr)
     lc = nothing
@@ -119,7 +59,7 @@ struct Invariant
     end
 end
 
-function variables(i::Invariant)
+function program_variables(i::Invariant)
     ls = Symbol[]
     postwalk(i.x) do x
         if @capture(x, f_(_)) && issymbol(f)

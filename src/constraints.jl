@@ -67,75 +67,27 @@ function raw_constraints(ctx::SynthContext)
     csroots  = cstr_roots(ctx)
     csrel    = cstr_algrel(ctx)
     @info "Equality constraints" cscforms csinit csroots csrel
-    equalities = cscforms & csinit & csroots & csrel
-
     # Inequality constraints
     csdistinct = cstr_distinct(ctx)
-    inequalities = csdistinct
     @debug "Inequality constraints" csdistinct
+    pcp = cscforms & csinit & csroots & csrel & csdistinct
 
-    rs, ms = ctx.roots, ctx.multi
-    t = length(ms)
-    cs = Iterators.flatten(coeffvec(i, j, size(ctx.body, 1), params=ctx.params) for i in 1:t for j in 1:ms[i]) |> collect
-    # cs = union(variables.(cs))
-    cs = reduce(union, map(variables, cs))
-    cs = setdiff(cs, ctx.params)
-    bs = reduce(union, map(variables, ctx.body))
-    vars = [cs; rs]
-    varmap = convert(Dict{Symbol,Type}, Dict(Symbol(string(v))=>AlgebraicNumber for v in vars))
-    for b in bs
-        # if !isconstant(b)
-            push!(varmap, Symbol(string(b))=>AlgebraicNumber)
-        # end
-    end
-    for v in ctx.init
-        # if !isconstant(v) && !(v in ctx.params)
-        if !(v in ctx.params)
-            push!(varmap, Symbol(string(v))=>AlgebraicNumber)
-        end
-    end
+    vars = NLSat.variables(pcp)
+    @info "" vars
+    varmap = convert(Dict{Symbol,Type}, Dict(v=>AlgebraicNumber for v in vars))
     @debug "Variables" varmap
 
-    if !(latex_logger() isa NullLogger)
-        with_logger(latex_logger()) do
-
-            function subscript(s)
-                str = string(s)
-                if !occursin("_", str)
-                    i = findfirst(x->x in '0':'9', str)
-                    return mkvar(join([str[1:i-1], "_", str[i:end]]))
-                end
-                mkvar(str)
-            end
-
-            sdict = Dict(mkvar(v)=>subscript(v) for v in keys(varmap))
-
-            function beautify(x)
-                # x = SymEngine.subs(x, Basic("t00")=>1, Basic("w1")=>1, Basic("q00")=>Basic("q_0"))
-                x = MultivariatePolynomials.subs(x, sdict...)
-                startswith(string(x), "-") ? -x : x
-            end
-
-            lalign(vec) = latexalign(string.(vec), zeros(Int, length(vec)), cdot=false)
-            lcforms = lalign(map(beautify, cscforms))
-            linit   = lalign(map(beautify, csinit))
-            lroots  = lalign(map(beautify, csroots))
-            lrel    = lalign(map(beautify, csrel))
-            @info "Equality constraints" lcforms linit lroots lrel
-        end
-    end
-
-    varmap, equalities, inequalities
+    varmap, pcp
 end
 
 function constraints(ctx::SynthContext)
-    varmap, equalities, inequalities = raw_constraints(ctx)
-    varmap, [map(eq, equalities); map(ineq, inequalities)]
+    raw_constraints(ctx)
+    # varmap, [map(eq, equalities); map(ineq, inequalities)]
 end
 
 function constraints_opt(ctx::SynthContext)
-    cstr = map(ineq, cstr_nonconstant(ctx))
-    [or(cstr...)]
+    ps = cstr_nonconstant(ctx)
+    ClauseSet(map(Clause ∘ Constraint{NEQ}, ps))
 end
 
 # ------------------------------------------------------------------------------
@@ -237,7 +189,7 @@ function cstr_nonconstant(ctx::SynthContext)
     A, B = ctx.init*ctx.params, ctx.body
     cs = B * B * A - B * A
     # do not consider variables which only occurr as initial variable in polys
-    vars = variables(ctx.inv)
+    vars = program_variables(ctx.inv)
     filter!(!isinitvar, vars)
     nonloopvars = setdiff(ctx.vars, vars)
     inds = [i for (i, v) in enumerate(ctx.vars) if !(v in vars)]

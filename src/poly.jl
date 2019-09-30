@@ -1,12 +1,12 @@
 
 issymbol(x) = x isa Symbol && Base.isidentifier(x)
-symbols(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
+# symbols(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
 
 # ------------------------------------------------------------------------------
 
 export mkvar, mkpoly
 
-mkpoly(x::Expr) = eval(symbols(y->mkvar(y), x))
+mkpoly(x::Expr) = eval(symbol_walk(y->mkvar(y), x))
 mkpoly(x::Symbol) = mkvar(x)
 mkpoly(x::Number) = iszero(x) ? zero(Polynomial{true,Int}) : one(Polynomial{true,Int}) * x
 

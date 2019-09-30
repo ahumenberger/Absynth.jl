@@ -52,9 +52,9 @@ function Base.show(io::IO, ::MIME"text/plain", l::Loop)
     # lp, rp, plus = "(", ")", "+" 
     # zero, one = "0", "1"
 
-    vars0 = replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", l.vars)), "\""=>"")
-    vars1 = replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", l.vars)), "\""=>"")
-    vars2 = replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", l.vars)), "\""=>"")
+    vars0 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", l.vars)), "\""=>"")
+    vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", l.vars)), "\""=>"")
+    vars2 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", l.vars)), "\""=>"")
     body = sprint(Base.print_matrix, l.body)
     init = sprint(Base.print_matrix, l.init)
 

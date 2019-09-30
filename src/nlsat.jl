@@ -7,8 +7,11 @@ export variables!, constraints!, solve
 using PyCall
 using DelimitedFiles
 using Distributed
-using MacroTools
+using MacroTools: walk, postwalk, @capture, @match, replace
 using Dates
+
+include("utils.jl")
+include("clauseset.jl")
 
 # Load Python libraries
 const pyio = PyNULL()
@@ -57,7 +60,8 @@ export AlgebraicNumber
 abstract type NLSolver end
 
 function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
-function constraints!(s::NLSolver, c::Vector{Expr}) end
+# function constraints!(s::NLSolver, c::Vector{Expr}) end
+# function constraints!(s::NLSolver, c::ClauseSet) end
 function solve(s::NLSolver; timeout::Int = -1) end
 
 # ------------------------------------------------------------------------------
@@ -97,22 +101,28 @@ end
 
 function prefix(x::Expr)
     s = sprint(Meta.show_sexpr, x)
-    s = replace(s, ":call, " => "")
-    s = replace(s, ":" => "")
-    s = replace(s, "," => "")
-    s = replace(s, "(==)" => "=")
-    s = replace(s, "!=" => "distinct")
-    s = replace(s, "||" => "or")
-    s = replace(s, "//" => "/")
+    s = Base.replace(s, ":call, " => "")
+    s = Base.replace(s, ":" => "")
+    s = Base.replace(s, "," => "")
+    s = Base.replace(s, "(==)" => "=")
+    s = Base.replace(s, "!=" => "distinct")
+    s = Base.replace(s, "||" => "or")
+    s = Base.replace(s, "//" => "/")
     s
 end
 
-struct YicesSolver <: NLSolver
+prefix(c::Constraint{EQ}) = string("(= ", prefix(c.poly), " 0)")
+prefix(c::Constraint{NEQ}) = string("(distinct ", prefix(c.poly), " 0)")
+
+prefix(c::Clause) = length(c) == 1 ? prefix(first(c)) : string("(or ", join(map(prefix, c), " "), ")")
+
+mutable struct YicesSolver <: NLSolver
     vars::Dict{Symbol,Type}
+    cs::ClauseSet
     pyvars::Dict{Symbol, PyObject}
     cstr::Vector{PyObject}
     input::Vector{String}
-    YicesSolver() = new(Dict(), Dict(), [], [])
+    YicesSolver() = new(Dict(), ClauseSet(), Dict(), [], [])
 end
 
 function variables!(s::YicesSolver, d::Dict{Symbol,Type})
@@ -123,20 +133,29 @@ function variables!(s::YicesSolver, d::Dict{Symbol,Type})
     end
 end
 
-function constraints!(s::YicesSolver, cstr::Vector{Expr})
-    for c in cstr
-        prefix_str = prefix(c)
-        term = yices.Terms.parse_term(prefix_str)
-        push!(s.cstr, term)
-        push!(s.input, yices.Terms.to_string(term, 200))
-    end
-end
+# function constraints!(s::YicesSolver, cstr::Vector{Expr})
+#     for c in cstr
+#         prefix_str = prefix(c)
+#         term = yices.Terms.parse_term(prefix_str)
+#         push!(s.cstr, term)
+#         push!(s.input, yices.Terms.to_string(term, 200))
+#     end
+# end
+
+constraints!(s::NLSolver, cs::ClauseSet) = s.cs &= cs
 
 function solve(s::YicesSolver; timeout::Int = -1)
     cfg = yices.Config()
     cfg.default_config_for_logic("QF_NRA")
     ctx = yices.Context(cfg)
-    ctx.assert_formulas(s.cstr)
+
+    for c in s.cs
+        prefix_str = prefix(c)
+        term = yices.Terms.parse_term(prefix_str)
+        # push!(s.cstr, term)
+        push!(s.input, yices.Terms.to_string(term, 200))
+    end
+    # ctx.assert_formulas(s.cstr)
 
     mktemp() do path, io
         write_yices(io, s)
