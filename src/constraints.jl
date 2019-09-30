@@ -3,13 +3,13 @@
 function dynamicsmatrix(size::Int, shape::MatrixShape)
     if shape == full
         # full
-        B = Poly[mkvar("b$i$j") for i in 1:size, j in 1:size]
+        B = [mkpoly(mkvar("b$i$j")) for i in 1:size, j in 1:size]
     elseif shape == upper
         # upper triangular
-        B = Poly[j>=i ? mkvar("b$i$j") : mkpoly(0) for i in 1:size, j in 1:size]
+        B = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:size, j in 1:size]
     elseif shape == uni
         # unitriangular
-        B = Poly[j>i ? mkvar("b$i$j") : i==j ? mkpoly(1) : mkpoly(0) for i in 1:size, j in 1:size]
+        B = [j>i ? mkpoly(mkvar("b$i$j")) : i==j ? mkpoly(1) : mkpoly(0) for i in 1:size, j in 1:size]
     end
     B
 end
