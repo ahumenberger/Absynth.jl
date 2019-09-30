@@ -199,11 +199,12 @@ end
 # ------------------------------------------------------------------------------
 
 
-struct Z3Solver <: NLSolver
+mutable struct Z3Solver <: NLSolver
     ptr::PyObject
     vars::Dict{Symbol, PyObject}
+    cs::ClauseSet
     cstr::Vector{PyObject}
-    Z3Solver() = new(z3.SolverFor("QF_NRA"), Dict(), [])
+    Z3Solver() = new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
 end
 
 function variables!(s::Z3Solver, d::Dict{Symbol,Type})
@@ -219,25 +220,22 @@ function variables!(s::Z3Solver, d::Dict{Symbol,Type})
     s.vars
 end
 
-function _constraint!(s::Z3Solver, c::Union{PyObject,Bool})
-    # TODO: do not accept boolean vars
-    s.ptr.add(c)
-    push!(s.cstr, c)
-    c
-end
-
-function constraints!(s::Z3Solver, cstr::Vector{Expr})
-    for c in cstr
-        ls = Expr[]
-        for (svar, z3var) in s.vars
-            push!(ls, Expr(:(=), svar, z3var))
-        end
-        c = MacroTools.postwalk(x -> @capture(x, a_ || b_) ? :(z3.Or($a, $b)) : x, c)
-        expr = Expr(:block, ls..., c)
-        z3cstr = eval(expr)
-        _constraint!(s, z3cstr)
+function _set_constraints(s::Z3Solver)
+    ls = Expr[]
+    for (svar, z3var) in s.vars
+        push!(ls, Expr(:(=), svar, z3var))
     end
-    s.cstr[end-length(cstr)+1:end]
+    for cl in s.cs
+        clause = if length(cl) == 1
+            :($(convert(Expr, first(cl))))
+        else
+            :(z3.Or($([convert(Expr, c) for c in cl])))
+        end
+        expr = Expr(:block, ls..., clause)
+        z3clause = eval(expr)
+        s.ptr.add(z3clause)
+        push!(s.cstr, z3clause)
+    end
 end
 
 function _check(s::Z3Solver)
@@ -258,6 +256,7 @@ end
 
 function solve(s::Z3Solver; timeout::Int=-1)
     mktemp() do path, io
+        _set_constraints(s)
         write(io, s.ptr.to_smt2())
         write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
         close(io)
@@ -265,7 +264,7 @@ function solve(s::Z3Solver; timeout::Int=-1)
         openproc(`z3 $path`, timeout=timeout) do lines
             d = Dict{Symbol,Number}()
             parser = smtparser.SmtLibParser()
-            @warn "Filtered root-obj. Needs fix!"
+            @warn "Filtering root-obj. Needs fix!"
             filter!(x->!(occursin("root-obj", x)), lines)
             ls = parser.get_assignment_list(pyio.StringIO(join(lines)))
             for (var,val) in ls
