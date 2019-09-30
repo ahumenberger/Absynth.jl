@@ -54,10 +54,6 @@ function order(expr::CFiniteExpr)
     all(isone, ms) ? 1 : length(ms)
 end
 
-# function exponential_monomials(expr::CFiniteExpr{S})
-
-# split(expr::CFiniteExpr, vars) = map(x->CFiniteExpr(x, expr.subs), destructpoly(expr.poly, vars))
-
 function constraints(expr::CFiniteExpr{S}; split_vars=Var[]) where {S}
     cs = ClauseSet()
     # qs = map(x->CFiniteExpr{S}(x, expr.subs), destructpoly(expr.poly, split_vars))

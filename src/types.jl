@@ -1,14 +1,5 @@
-
-# export Invariant, variables
-# export preprocess_invariant
-
 function _checkfunc(x, xs)
     x in [:(<), :(<=), :(>), :(>=)] && error("Only Boolean combinations of equalities allowed, got $x")
-    # if issymbol(x)
-    #     symbols(xs[1]) do s
-    #         s != :n && error("Only loop counter 'n' allowed")
-    #     end
-    # end
     :($x($(xs...)))
 end
 

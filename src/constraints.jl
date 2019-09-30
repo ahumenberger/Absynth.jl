@@ -232,11 +232,3 @@ function cstr_algrel(ctx::SynthContext)
     end
     eval(res)
 end
-
-# ------------------------------------------------------------------------------
-
-
-# function summands(x::Basic)
-#     args = get_args(SymEngine.expand(x))
-#     sum(args) == x ? args : x
-# end
