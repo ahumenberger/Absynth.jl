@@ -309,13 +309,32 @@ typename(x::PyObject) = x.__class__.__name__
 # function solve(s::MathematicaSolver; timeout::Int=-1)
 #     formula = MathLink.parseexpr(_tostring(s.cs))
 #     vars = MathLink.parseexpr(string("{", join(collect(keys(s.vars)), ", "), "}"))
-#     result = if timeout > 0
+#     timeout = -1
+#     result = if timeout <= 0
 #         W"FindInstance"(formula, vars)
 #     else
 #         W"TimeConstrained"(W"FindInstance"(formula, vars), timeout)
 #     end
 #     result = weval(result)
-#     @info "" result
+#     res = _to_julia(result)
+
+#     if isempty(res)
+#         return NLSat.unsat
+#     end
+#     NLSat.sat, Second(1), Dict(first(res))
+# end
+
+# _to_julia(w::MathLink.WSymbol) = Symbol(w.name)
+# _to_julia(w::Number) = w
+# function _to_julia(w::MathLink.WExpr)
+#     @info "" w.head w.args
+#     if w.head == W"List"
+#         return [_to_julia(x) for x in w.args]
+#     elseif w.head == W"Rule"
+#         return _to_julia(w.args[1]) => _to_julia(w.args[2])
+#     elseif w.head == W"Rational"
+#         return _to_julia(w.args[1]) // _to_julia(w.args[2])
+#     end
 # end
 
 end # module

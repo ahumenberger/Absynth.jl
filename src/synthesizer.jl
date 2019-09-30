@@ -59,7 +59,7 @@ end
 
 issat(s::SynthResult) = s.result isa Loop
 
-const Model = Dict{Symbol,Number}
+const Model = Dict{Symbol,<:Number}
 
 # ------------------------------------------------------------------------------
 
