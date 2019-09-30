@@ -114,7 +114,7 @@ end
 prefix(c::Constraint{EQ}) = string("(= ", prefix(c.poly), " 0)")
 prefix(c::Constraint{NEQ}) = string("(distinct ", prefix(c.poly), " 0)")
 
-prefix(c::Clause) = length(c) == 1 ? prefix(first(c)) : string("(or ", join(map(prefix, c), " "), ")")
+prefix(c::Clause) = length(c) == 1 ? prefix(first(c)) : string("(or ", join([prefix(x) for x in c], " "), ")")
 
 mutable struct YicesSolver <: NLSolver
     vars::Dict{Symbol,Type}
