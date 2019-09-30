@@ -31,6 +31,7 @@ end
 Base.:+(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly + y.poly, merge(x.subs, y.subs))
 Base.:-(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly - y.poly, merge(x.subs, y.subs))
 Base.:*(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly * y.poly, merge(x.subs, y.subs))
+Base.:^(x::CFiniteExpr{S}, y::Int) where {S} = CFiniteExpr{S}(x.poly^y, x.subs)
 
 Base.:+(x, y) = Base.:+(promote(x, y)...)
 Base.:-(x, y) = Base.:-(promote(x, y)...)
