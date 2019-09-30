@@ -296,18 +296,7 @@ typename(x::PyObject) = x.__class__.__name__
 
 # ------------------------------------------------------------------------------
 
-# try
-#     using Mathematica
-# catch
-#     @info "MathematicaSolver not available. Everything else works."    
-# end
-
-
-# if @isdefined(Mathematica)
-
-# export MathematicaSolver
-
-# using Mathematica
+# using MathLink
 
 # mma_typemap = Dict{Type,Symbol}(
 #     Int => :Integers,
@@ -315,36 +304,29 @@ typename(x::PyObject) = x.__class__.__name__
 #     AlgebraicNumber => :Algebraics
 # )
 
-# struct MathematicaSolver <: NLSolver
+# mutable struct MathematicaSolver <: NLSolver
 #     vars::Dict{Symbol,Type}
-#     cstr::Vector{Expr}
-#     MathematicaSolver() = new(Dict(), [])
+#     cs::ClauseSet
+#     MathematicaSolver() = new(Dict(), ClauseSet())
 # end
 
 # function variables!(s::MathematicaSolver, d::Dict{Symbol,Type})
 #     push!(s.vars, d...)
 # end
 
-# function constraints!(s::MathematicaSolver, cstr::Vector{Expr})
-#     append!(s.cstr, cstr)
-# end
+# _tostring(cl::Clause) = join([string(convert(Expr, c)) for c in cl], " || ")
+# _tostring(cs::ClauseSet) = join([string("(", _tostring(cl), ")") for cl in cs], " && ")
 
 # function solve(s::MathematicaSolver; timeout::Int=-1)
-#     @debug "Constraints and variables" s.cstr s.vars
-#     if timeout > 0
-#         result = @TimeConstrained(FindInstance($(s.cstr), $(collect(keys(s.vars))), :AlgebraicNumbers), $(timeout), Timeout)
+#     formula = MathLink.parseexpr(_tostring(s.cs))
+#     vars = MathLink.parseexpr(string("{", join(collect(keys(s.vars)), ", "), "}"))
+#     result = if timeout > 0
+#         W"FindInstance"(formula, vars)
 #     else
-#         result = @FindInstance($(s.cstr), $([Element(v, mma_typemap[t]) for (v,t) in s.vars]))
+#         W"TimeConstrained"(W"FindInstance"(formula, vars), timeout)
 #     end
-#     @debug "Result of Mathematica" result
-#     if result == :Timeout
-#         return NLSat.timeout, nothing
-#     elseif isempty(result)
-#         return NLSat.unsat, nothing
-#     end
-#     return NLSat.sat, Dict(result[1]...)
+#     result = weval(result)
+#     @info "" result
 # end
-
-# end #if
 
 end # module
