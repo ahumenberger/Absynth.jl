@@ -60,9 +60,8 @@ export AlgebraicNumber
 abstract type NLSolver end
 
 function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
-# function constraints!(s::NLSolver, c::Vector{Expr}) end
-# function constraints!(s::NLSolver, c::ClauseSet) end
 function solve(s::NLSolver; timeout::Int = -1) end
+constraints!(s::NLSolver, cs::ClauseSet) = s.cs &= cs
 
 # ------------------------------------------------------------------------------
 
@@ -133,17 +132,6 @@ function variables!(s::YicesSolver, d::Dict{Symbol,Type})
         push!(s.vars, v=>t)
     end
 end
-
-# function constraints!(s::YicesSolver, cstr::Vector{Expr})
-#     for c in cstr
-#         prefix_str = prefix(c)
-#         term = yices.Terms.parse_term(prefix_str)
-#         push!(s.cstr, term)
-#         push!(s.input, yices.Terms.to_string(term, 200))
-#     end
-# end
-
-constraints!(s::NLSolver, cs::ClauseSet) = s.cs &= cs
 
 function solve(s::YicesSolver; timeout::Int = -1)
     cfg = yices.Config()
