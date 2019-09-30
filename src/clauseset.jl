@@ -52,6 +52,13 @@ Base.convert(::Type{Clause}, c::Constraint) = Clause([c])
 Base.convert(::Type{ClauseSet}, c::Constraint) = ClauseSet([Clause([c])])
 Base.convert(::Type{ClauseSet}, c::Clause) = ClauseSet([c])
 
+Base.convert(::Type{Expr}, c::Constraint{EQ}) = :($(c.poly) == 0)
+Base.convert(::Type{Expr}, c::Constraint{NEQ}) = :($(c.poly) != 0)
+Base.convert(::Type{Expr}, c::Constraint{LT}) = :($(c.poly) < 0)
+Base.convert(::Type{Expr}, c::Constraint{LEQ}) = :($(c.poly) <= 0)
+Base.convert(::Type{Expr}, c::Constraint{GT}) = :($(c.poly) > 0)
+Base.convert(::Type{Expr}, c::Constraint{GEQ}) = :($(c.poly) >= 0)
+
 Base.promote_rule(::Type{Clause}, ::Type{Constraint{R}}) where {R} = Clause
 Base.promote_rule(::Type{Constraint{R}}, ::Type{Clause}) where {R} = Clause
 Base.promote_rule(::Type{ClauseSet}, ::Type{Constraint{R}}) where {R} = ClauseSet
