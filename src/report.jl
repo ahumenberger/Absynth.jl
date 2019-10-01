@@ -30,13 +30,16 @@ function report2(polys; solvers=[Yices,Z3], timeout=2, maxsol=1, shapes=[uni, up
     for solver in solvers
         for invset in polys
             name, inv = invset isa Pair ? invset : (invset, invset)
-            syms = SymEngine.free_symbols(map(Basic, inv))
-            xparams, xvars = filtervars(syms)
-            filter!(x->x!=Basic("cc00"), xparams)
+            inv = Invariant(inv)
+            syms = program_variables(inv)
+            xvars = syms
+            xparams = Symbol[]
+            # xparams, xvars = filtervars(syms)
+            # filter!(x->x!=Basic("cc00"), xparams)
             # push!(xvars, Basic("cc"))
             xvars = varorder(name)
             for shape in shapes
-                @info name shape
+                # @info name shape
                 solutions = synth(inv, solver=solver, timeout=timeout, maxsol=maxsol, shape=shape, perm=false, part=[[length(xvars)+1]], vars=xvars, params=xparams)
                 for s in solutions
                     push!(df, (solver, name, shape, s.info.ctx.multi, s.result, s.elapsed))

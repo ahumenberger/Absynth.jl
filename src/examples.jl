@@ -1,13 +1,13 @@
 export examples, example, varorders, varorder
 
 macro example(name, inv)
-    push!(_examples, name=>parseformula(inv))
+    push!(_examples, name=>inv)
 end
 macro varorder(name, vars...)
     push!(_varorder, name=>collect(vars))
 end
 
-_examples = Dict{Symbol,Vector{Expr}}()
+_examples = Dict{Symbol,Expr}()
 _varorder = Dict{Symbol,Vector{Symbol}}()
 
 examples() = _examples
@@ -82,7 +82,7 @@ varorder(s) = _varorder[s]
 #     r = r - y
 #     q = q + 1
 # end
-@example eucliddiv (x00 == y00*q + r)
+@example eucliddiv (x(0) == y(0)*q + r)
 @varorder eucliddiv r q x y
 
 # Integer Square Root - version 1
@@ -157,7 +157,7 @@ varorder(s) = _varorder[s]
 #     r = r + 1
 #     n = n - 1
 # end
-@example add1 (r == x00+y00-n)
+@example add1 (r == x(0)+y(0)-n)
 @varorder add1 r n x y
 
 # r = 2x
