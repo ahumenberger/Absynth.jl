@@ -22,6 +22,16 @@ const yices = PyNULL()
 z3_typemap = Dict{Type,Function}()
 yices_typemap = Dict{Type,PyObject}()
 
+function _print_available(s::String, available::Bool)
+    io = stdout
+    status = available ? "available" : "not available"
+    color = available ? :green : :red
+    print(io, s)
+    print(io, "\t")
+    printstyled(io, status, color=color)
+    print(io, "\n")
+end
+
 function __init__()
     copy!(smtparser, pyimport("pysmt.smtlib.parser"))
     copy!(pyio, pyimport("io"))
@@ -31,9 +41,9 @@ function __init__()
         push!(z3_typemap, Bool            => z3.Bool)
         push!(z3_typemap, AlgebraicNumber => z3.Real)
         push!(z3_typemap, Rational        => z3.Real)
-        @info "Z3 available"
+        _print_available("Z3", true)
     catch
-        @error "Could not load Z3"
+        _print_available("Z3", false)
     end
 
     try
@@ -42,9 +52,9 @@ function __init__()
         push!(yices_typemap, Bool             => yices.Types.bool_type())
         push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
         push!(yices_typemap, Rational         => yices.Types.real_type())
-        @info "Yices available"
+        _print_available("Yices", true)
     catch
-        @error "Could not load Yices"
+        _print_available("Yices", false)
     end
 end
 
