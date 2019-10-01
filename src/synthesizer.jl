@@ -164,18 +164,17 @@ Synthesis of loops
 $(join(synthparamstr, "\n"))
 """
 function synth(inv::Invariant; kwargs...)
-    # polys = map(mkpoly, polys)
-
     solver  = get(kwargs, :solver, Yices)
     timeout = get(kwargs, :timeout, 10)
     maxsol  = get(kwargs, :maxsol, 1)
     trivial = get(kwargs, :trivial, false)
 
-    syms = map(mkvar, program_variables(inv))
-    xparams, xvars = filtervars(syms)
-    vars   = map(mkvar, get(kwargs, :vars, xvars))
-    params = map(mkvar, get(kwargs, :params, xparams))
-    @assert issubset(xvars, vars) "Variables in polys ($(xvars)) not a subset of given variables ($(vars))"
+    syms = program_variables(inv)
+    vars   = map(mkvar, get(kwargs, :vars, syms))
+    params = map(mkvar, get(kwargs, :params, []))
+    params = isempty(params) ? typeof(vars)() : params
+    @assert issubset(syms, map(Symbol ∘ string, vars)) "Variables in polys ($(syms)) are not a subset of given variables ($(vars))"
+    @assert issubset(params, vars) "Given parameters ($(params)) are not a subset of given variables ($(vars))"
 
     shape = get(kwargs, :shape, full)
     # permutations of variables without dimension for constant 1
