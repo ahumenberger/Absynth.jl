@@ -84,6 +84,20 @@ ClosedFormTemplate(rt::RecurrenceTemplate, ms::Vector{Int}) = ClosedFormTemplate
 
 # ------------------------------------------------------------------------------
 
+struct SynthesisProblem
+    inv::Invariant
+    rt::RecurrenceTemplate
+    ct::ClosedFormTemplate
+
+    function SynthesisProblem(inv::Invariant, rt::RecurrenceTemplate, ct::ClosedFormTemplate)
+        @assert issubset(variables(inv), rt.vars)
+        @assert rt.vars == ct.vars && rt.params == ct.params
+        new(inv, rt, ct)
+    end
+end
+
+# ------------------------------------------------------------------------------
+
 function Base.summary(io::IO, rt::RecurrenceTemplate)
     compact = get(io, :compact, false)
     if compact
