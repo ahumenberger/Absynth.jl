@@ -31,6 +31,7 @@ include("report.jl")
 include("poly.jl")
 include("macros.jl")
 include("examples.jl")
+include("frontend.jl")
 
 export synth, report, rerun
 

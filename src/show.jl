@@ -67,6 +67,34 @@ function Base.show(io::IO, ::MIME"text/plain", l::Loop)
     print(io, str)
 end
 
+function _print_recsystem(io::IO, vars, body, init)
+    h = size(body, 1)
+    lstr, rstr = lpar(h), rpar(h, " ")
+    eq = symstr(h, "=")
+
+    lc = "\u2099"
+    lp, rp, plus = "", "", "\u208A" 
+    zero, one = "\u2080", "\u2081"
+
+    # lc = "n"
+    # lp, rp, plus = "(", ")", "+" 
+    # zero, one = "0", "1"
+
+    vars0 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", vars)), "\""=>"")
+    vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", vars)), "\""=>"")
+    vars2 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", vars)), "\""=>"")
+    body = sprint(Base.print_matrix, body)
+    init = sprint(Base.print_matrix, init)
+
+    lhs1 = (lstr, vars2, rstr)
+    rhs1 = (lstr, body, rstr, lstr, vars1, rstr)
+
+    lhs2 = (lstr, vars0, rstr)
+    rhs2 = (lstr, init, rstr)
+    str = mergestr(space(h, "\t"), lhs1..., eq, rhs1..., space(h, "\t"), lhs2..., eq, rhs2...)
+    print(io, str)
+end
+
 # ------------------------------------------------------------------------------
 
 function Base.summary(io::IO, s::SynthResult) where {T}
