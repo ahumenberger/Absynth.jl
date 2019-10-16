@@ -120,6 +120,53 @@ init(s::SynthesisProblem) = s.rt.init
 multiplicities(s::SynthesisProblem) = s.ct.multiplicities
 roots(s::SynthesisProblem) = symroot(length(multiplicities(s)))
 
+function constraints(sp::SynthesisProblem; progress::Bool=false)
+    cscforms = cstr_cforms(sp)
+    csinit   = cstr_init(sp)
+    csroots  = cstr_roots(sp)
+    csrel    = cstr_algrel(sp)
+    @debug "Constraints" cscforms csinit csroots csrel
+    pcp = cscforms & csinit & csroots & csrel
+    if progress
+        pcp &= cstr_progress(sp)
+    end
+    pcp
+end
+
+function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; kwargs...)
+    pcp = constraints(sp; kwargs...)
+    vars = NLSat.variables(pcp)
+    varmap = convert(Dict{Symbol,Type}, Dict(v=>AlgebraicNumber for v in vars))
+    @debug "Variables" varmap
+
+    solver = T()
+    NLSat.variables!(solver, varmap)
+    NLSat.constraints!(solver, pcp)
+    solver
+end
+
+const NLModel = Dict{Symbol,Number}
+
+function parse_model(sp::SynthesisProblem, model::NLModel)
+    A, B = init(sp), body(sp)
+    body = Number[get(model, Symbol(string(b)), b) for b in B]
+    init = Number[get(model, Symbol(string(b)), b) for b in A]
+    Loop(vars(sp), params(sp), init, body)
+end
+
+function solve(sp::SynthesisProblem, solver::S; kwargs...) where {S<:NLSolver}
+    timeout = get(kwargs, :timeout, 10)
+    stype = get(kwargs, :solver, Z3Solver)
+
+    solver = create_solver(sp, stype; kwargs...)
+    status, elapsed, model = NLSat.solve(solver, timeout = timeout)
+    if status == NLSat.sat
+        return SynthResult(parse_model(sp, model), elapsed, S.info)
+    end
+    SynthResult(status, elapsed, S.info)
+end
+
+
 "Generate constraints ensuring that p is an algebraic relation."
 function cstr_algrel(sp::SynthesisProblem)
     res = constraint_walk(sp.inv) do poly
@@ -179,6 +226,25 @@ function cstr_cforms(sp::SynthesisProblem)
     Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=pars) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=pars) for i in 1:t for j in 1:ms[i]]
     ps = destructpoly(collect(Iterators.flatten(Ds)), pars)
     ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
+end
+
+"Generate constraints ensuring that sequence is not constant, i.e. B*B*x0 != B*x0."
+function cstr_progress(sp::SynthesisProblem)
+    pars = params(Poly, sp)
+    A, B = init(sp)*pars, body(sp)
+    cs = B * B * A - B * A
+    # do not consider variables which only occurr as initial variable in polys
+    invvars = program_variables(sp.inv)
+    # filter!(!isinitvar, vars)
+    nonloopvars = setdiff(vars(sp), invvars)
+    inds = [i for (i, v) in enumerate(vars(sp)) if !(v in invvars)]
+    deleteat!(cs, inds)
+    res = Clause()
+    for c in cs
+        ps = destructpoly([c], pars)
+        res |= Clause(map(Constraint{NEQ}, ps))
+    end
+    ClauseSet(res)
 end
 
 # ------------------------------------------------------------------------------
