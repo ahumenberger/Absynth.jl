@@ -110,6 +110,16 @@ struct SynthesisProblem
     end
 end
 
+vars(s::SynthesisProblem) = s.rt.vars
+params(s::SynthesisProblem) = s.rt.params
+params(::Type{Poly}, s::SynthesisProblem) = map(mkpoly, params(s))
+
+body(s::SynthesisProblem) = s.rt.body
+init(s::SynthesisProblem) = s.rt.init
+
+multiplicities(s::SynthesisProblem) = s.ct.multiplicities
+roots(s::SynthesisProblem) = symroot(length(multiplicities(s)))
+
 "Generate constraints ensuring that p is an algebraic relation."
 function cstr_algrel(sp::SynthesisProblem)
     res = constraint_walk(sp.inv) do poly
@@ -126,8 +136,7 @@ end
 
 "Generate constraints ensuring that the root symbols are roots of the characteristic polynomial of B."
 function cstr_roots(sp::SynthesisProblem)
-    B, ms = sp.rt.body, sp.ct.multiplicities
-    rs = symroot(length(ms))
+    B, rs, ms = body(sp), roots(sp), multiplicities(sp)
     λ = mkvar(gensym_unhashed(:x))
     BB = copy(B)
     for i in diagind(B)
@@ -146,31 +155,29 @@ end
 
 "Generate constraints defining the initial values."
 function cstr_init(sp::SynthesisProblem)
-    B, ms = sp.rt.body, sp.ct.multiplicities
-    rs = symroot(length(ms))
+    B, rs, ms = body(sp), roots(sp), multiplicities(sp)
+    pars = params(Poly, sp)
     s = size(B, 1)
     d = sum(ms)
-    A = sp.rt.init*sp.rt.params
-    params = map(mkpoly, sp.ct.params)
+    A = init(sp) * pars
     cstr = Poly[]
     for i in 0:d-1
-        M = cforms(s, rs, ms, lc=i, exp=i, params=params)
+        M = cforms(s, rs, ms, lc=i, exp=i, params=pars)
         X = iszero(i) ? A : B^i*A
         append!(cstr, X - M)
     end
-    ps = destructpoly(cstr, params)
+    ps = destructpoly(cstr, pars)
     ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
 "Generate constraints describing the relationship between entries of B and the closed forms."
 function cstr_cforms(sp::SynthesisProblem)
-    B, ms = sp.rt.body, sp.ct.multiplicities
+    B, rs, ms = body(sp), roots(sp), multiplicities(sp)
+    pars = params(Poly, sp)
     t = length(ms)
-    rs = symroot(t)
     rows = size(B, 1)
-    params = map(mkpoly, sp.ct.params)
-    Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=params) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=params) for i in 1:t for j in 1:ms[i]]
-    ps = destructpoly(collect(Iterators.flatten(Ds)), params)
+    Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=pars) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=pars) for i in 1:t for j in 1:ms[i]]
+    ps = destructpoly(collect(Iterators.flatten(Ds)), pars)
     ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
