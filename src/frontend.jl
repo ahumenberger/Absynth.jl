@@ -110,6 +110,8 @@ function RecurrenceTemplate(vars::Vector{Symbol}; constone::Bool = false, matrix
     RecurrenceTemplate(vars, params, B, A)
 end
 
+Base.size(rt::RecurrenceTemplate) = length(rt.vars)
+
 # ------------------------------------------------------------------------------
 
 struct ClosedFormTemplate
@@ -154,6 +156,8 @@ end
 vars(s::SynthesisProblem) = s.rt.vars
 params(s::SynthesisProblem) = s.rt.params
 params(::Type{Poly}, s::SynthesisProblem) = map(mkpoly, params(s))
+params(::Type{Symbol}, s::SynthesisProblem) = filter(x->x isa Symbol, params(s))
+params(::Type{Var}, s::SynthesisProblem) = map(mkvar, params(Symbol, s))
 
 body(s::SynthesisProblem) = s.rt.body
 init(s::SynthesisProblem) = s.rt.init
@@ -195,13 +199,18 @@ function parse_model(sp::SynthesisProblem, model::NLModel)
     RecSystem(vars(sp), params(sp), A, B)
 end
 
+function solve(sp::SynthesisProblem, solver::S; timeout::Int) where {S<:NLSolver}
+    status, elapsed, model = NLSat.solve(solver, timeout = timeout)
+    @debug "Solver result" status model
+    if status == NLSat.sat
+        return model, SynthesisResult(parse_model(sp, model), elapsed, sp)
+    end
+    nothing, SynthesisResult(status, elapsed, sp)
+end
+
 function solve(sp::SynthesisProblem; solver::Type{<:NLSolver}=Z3Solver, progress::Bool=false, timeout::Int=10)
     _solver = create_solver(sp, solver; progress=progress)
-    status, elapsed, model = NLSat.solve(_solver, timeout = timeout)
-    if status == NLSat.sat
-        return SynthesisResult(parse_model(sp, model), elapsed, sp)
-    end
-    SynthResult(status, elapsed, sp)
+    last(solve(sp, _solver, timeout=timeout))
 end
 
 "Generate constraints ensuring that p is an algebraic relation."
@@ -212,7 +221,8 @@ function cstr_algrel(sp::SynthesisProblem)
             :($(closed_form(sp.ct, sp.inv.lc, func, args[1])))
         end
         cfin = eval(expr)
-        cstr = constraints(cfin; split_vars=Any[sp.ct.params; sp.inv.lc])
+        splitvars = Symbol[params(Symbol, sp); sp.inv.lc]
+        cstr = constraints(cfin; split_vars=splitvars)
         :($cstr)
     end
     eval(res)
@@ -250,7 +260,7 @@ function cstr_init(sp::SynthesisProblem)
         X = iszero(i) ? A : B^i*A
         append!(cstr, X - M)
     end
-    ps = destructpoly(cstr, pars)
+    ps = destructpoly(cstr, params(Var, sp))
     ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
@@ -261,7 +271,7 @@ function cstr_cforms(sp::SynthesisProblem)
     t = length(ms)
     rows = size(B, 1)
     Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=pars) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=pars) for i in 1:t for j in 1:ms[i]]
-    ps = destructpoly(collect(Iterators.flatten(Ds)), pars)
+    ps = destructpoly(collect(Iterators.flatten(Ds)), params(Var, sp))
     ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
 
@@ -278,7 +288,7 @@ function cstr_progress(sp::SynthesisProblem)
     deleteat!(cs, inds)
     res = Clause()
     for c in cs
-        ps = destructpoly([c], pars)
+        ps = destructpoly([c], params(Var, sp))
         res |= Clause(map(Constraint{NEQ}, ps))
     end
     ClauseSet(res)

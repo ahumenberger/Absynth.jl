@@ -54,7 +54,7 @@ function order(expr::CFiniteExpr)
     all(isone, ms) ? 1 : length(ms)
 end
 
-function constraints(expr::CFiniteExpr{S}; split_vars=Var[]) where {S}
+function constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Symbol[]) where {S}
     cs = ClauseSet()
     # qs = map(x->CFiniteExpr{S}(x, expr.subs), destructpoly(expr.poly, split_vars))
     qs = destructpoly([expr.poly], split_vars)
@@ -69,7 +69,7 @@ function constraints(expr::CFiniteExpr{S}; split_vars=Var[]) where {S}
     cs
 end
 
-# # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 coeffs(p::Poly, v::Var) = [coefficient(p, v^i, [v]) for i in 0:maxdegree(p, v)]
 
@@ -78,7 +78,7 @@ destructpoly(p::Poly, var::Var, left::Var...) =
     reduce(union, map(x->destructpoly(x, left...), coeffs(p, var)))
 
 function destructpoly(ps, vars)
-    xvars = filter(x->isa(x, Var), vars)
+    xvars = map(mkvar, vars)
     isempty(xvars) ? ps : reduce(union, map(x->destructpoly(x, xvars...), ps))
 end
 
