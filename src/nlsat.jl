@@ -1,7 +1,7 @@
 module NLSat
 
 export NLSolver, Z3Solver, YicesSolver
-export NLStatus
+export NLStatus, NLModel
 export variables!, constraints!, solve
 
 using PyCall
@@ -12,6 +12,8 @@ using Dates
 
 include("utils.jl")
 include("clauseset.jl")
+
+const NLModel = Dict{Symbol,Number}
 
 # Load Python libraries
 const pyio = PyNULL()

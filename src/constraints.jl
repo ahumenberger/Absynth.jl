@@ -95,14 +95,7 @@ function cforms(varcnt::Int, rs::Vector{<:Var}, ms::Vector{Int}; lc::Union{Int,V
     sum(coeffvec(i, j, varcnt, params=params) * rs[i]^exp * lc^(j-1) for i in 1:t for j in 1:ms[i])
 end
 
-function coeffvec(i::Int, j::Int, rows::Int; params::Vector{<:Poly})
-    nparams = length(params)
 
-    # s = collect('c':'z')[i*j]
-    # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
-    C = [mkvar("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
-    C * params
-end
 
 function initvec(vars::Vector{<:Var}, params::Vector{<:Var})
     rows, cols = length(vars), length(params)+1
@@ -200,6 +193,15 @@ function cstr_nonconstant(ctx::SynthContext)
 end
 
 # ------------------------------------------------------------------------------
+
+function coeffvec(i::Int, j::Int, rows::Int; params::Vector{<:Poly})
+    nparams = length(params)
+
+    # s = collect('c':'z')[i*j]
+    # C = [Basic("$s$k$l") for k in 1:rows, l in 1:nparams]
+    C = [mkvar("c$i$j$k$l") for k in 1:rows, l in 1:nparams]
+    C * params
+end
 
 function coeffvec2(i::Int, j::Int, varidx::Int; params::Vector{<:Poly})
     nparams = length(params)

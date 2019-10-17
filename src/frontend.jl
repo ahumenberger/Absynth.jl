@@ -1,7 +1,4 @@
-
 const SymOrNum = Union{Symbol,Number}
-
-abstract type DynamicsMatrix end
 
 FullMatrix(s::Int) = [mkpoly(mkvar("b$i$j")) for i in 1:s, j in 1:s]
 UpperTriangular(s::Int) = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:s, j in 1:s]
@@ -137,9 +134,17 @@ function closed_form(ct::ClosedFormTemplate, lc::Symbol, var::Symbol, arg)
     parg = mkpoly(arg)
     pairs = [replacement_pair(NExp{lc}(rs[i], parg)) for i in 1:nroots]
     params = map(mkpoly, ct.params)
-    poly = sum(coeffvec2(i, j, idx, params=params) * first(pairs[i]) * parg^(j-1) for i in 1:nroots for j in 1:ms[i])
+    poly = sum(coeff_var(i, j, idx, params=params) * first(pairs[i]) * parg^(j-1) for i in 1:nroots for j in 1:ms[i])
     CFiniteExpr{lc}(poly, Dict(pairs))
 end
+
+# ------------------------------------------------------------------------------
+
+coeff_vec(i::Int, j::Int, rows::Int; params::Vector{<:Poly}) =
+    [coeff_var(i, j, k, params=params) for k in 1:rows]
+
+coeff_var(i::Int, j::Int, varidx::Int; params::Vector{<:Poly}) =
+    sum(mkvar("c$i$j$(varidx)$l") * p for (l,p) in enumerate(params))
 
 # ------------------------------------------------------------------------------
 
@@ -191,8 +196,6 @@ function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool
     NLSat.constraints!(solver, pcp)
     solver
 end
-
-const NLModel = Dict{Symbol,Number}
 
 function parse_model(sp::SynthesisProblem, model::NLModel)
     _A, _B = init(sp), body(sp)
@@ -272,7 +275,7 @@ function cstr_cforms(sp::SynthesisProblem)
     pars = params(Poly, sp)
     t = length(ms)
     rows = size(B, 1)
-    Ds = [sum(binomial(k-1, j-1) * coeffvec(i, k, rows, params=pars) * rs[i] for k in j:ms[i]) - B * coeffvec(i, j, rows, params=pars) for i in 1:t for j in 1:ms[i]]
+    Ds = [sum(binomial(k-1, j-1) * coeff_vec(i, k, rows, params=pars) * rs[i] for k in j:ms[i]) - B * coeff_vec(i, j, rows, params=pars) for i in 1:t for j in 1:ms[i]]
     ps = destructpoly(collect(Iterators.flatten(Ds)), params(Var, sp))
     ClauseSet(map(Clause ∘ Constraint{EQ}, ps))
 end
