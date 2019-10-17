@@ -87,6 +87,8 @@ end
 
 # ------------------------------------------------------------------------------
 
+const CONST_ONE_SYM = :_c
+
 struct RecurrenceTemplate
     vars::Vector{Symbol}
     params::Vector{SymOrNum}
@@ -102,7 +104,7 @@ function RecurrenceTemplate(vars::Vector{Symbol}; constone::Bool = false, matrix
     A = initmatrix(vars, params)
 
     if constone
-        push!(vars, :cc)
+        push!(vars, CONST_ONE_SYM)
         B = _add_const_one(B)
         A = _add_row_one(A)
     end
