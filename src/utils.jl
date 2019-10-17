@@ -1,3 +1,5 @@
+gensym_unhashed(s::Symbol) = Symbol(Base.replace(string(gensym(s)), "#"=>""))
+
 constraint_walk(f, expr) = postwalk(expr) do x
     @capture(x, p_ == 0) ? f(p) : x
 end

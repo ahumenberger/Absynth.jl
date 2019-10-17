@@ -146,6 +146,11 @@ coeff_vec(i::Int, j::Int, rows::Int; params::Vector{<:Poly}) =
 coeff_var(i::Int, j::Int, varidx::Int; params::Vector{<:Poly}) =
     sum(mkvar("c$i$j$(varidx)$l") * p for (l,p) in enumerate(params))
 
+symroot(n::Int) = [mkvar("w$i") for i in 1:n]
+
+cforms(varcnt::Int, rs::Vector{<:Var}, ms::Vector{Int}; lc::Union{Int,Var}, exp::Int, params::Vector{<:Poly}) =
+    sum(coeff_vec(i, j, varcnt, params=params) * rs[i]^exp * lc^(j-1) for i in 1:length(rs) for j in 1:ms[i])
+
 # ------------------------------------------------------------------------------
 
 struct SynthesisProblem

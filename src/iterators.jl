@@ -1,3 +1,5 @@
+import Base: iterate
+
 struct ClosedForms
     rt::RecurrenceTemplate
     part
