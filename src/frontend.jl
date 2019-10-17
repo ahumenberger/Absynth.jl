@@ -46,6 +46,47 @@ function bodymatrix(s::Int, shape::Symbol)
     end
 end
 
+# ------------------------------------------------------------------------------
+
+struct RecSystem
+    vars::Vector{Symbol}
+    params::Vector{SymOrNum}
+    init::Matrix{<:Number}
+    body::Matrix{<:Number}
+end
+
+value(l::RecSystem, k::Int) = l.body^k * l.init
+value(l::RecSystem, r::UnitRange{Int}) = [value(l, k) for k in r]
+
+function sequentialize(M::Matrix, v::Vector)
+    LinearAlgebra.istriu(M) && return M, v
+    h = size(M, 2)
+    V = [mkvar("_" * string(x)) for x in v]
+    V = [V; v]
+    tl = zeros(Int, h, h)
+    tr = UniformScaling(1)
+    bl = LowerTriangular(M) - Diagonal(M)
+    br = M - bl
+    B = vcat(hcat(tl, tr), hcat(bl, br))
+    zcols = findall(iszero, collect(eachcol(B)))
+    B[setdiff(1:end, zcols), setdiff(1:end, zcols)], V[setdiff(1:end, zcols)]
+end
+
+function code(l::RecSystem)
+    body, vars = sequentialize(l.body, l.vars)
+    lhss = (Meta.parse ∘ string).(body * vars)
+    init = [:($rhs = $lhs) for (rhs,lhs) in zip(l.vars, l.init*l.params)]
+    assign = [:($rhs = $lhs) for (rhs,lhs) in zip(vars, lhss)]
+    striplines(quote
+        $(init...)
+        while true
+            $(assign...)
+        end
+    end)
+end
+
+# ------------------------------------------------------------------------------
+
 struct RecurrenceTemplate
     vars::Vector{Symbol}
     params::Vector{SymOrNum}
@@ -133,8 +174,8 @@ function constraints(sp::SynthesisProblem; progress::Bool=false)
     pcp
 end
 
-function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; kwargs...)
-    pcp = constraints(sp; kwargs...)
+function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool=false)
+    pcp = constraints(sp; progress=progress)
     vars = NLSat.variables(pcp)
     varmap = convert(Dict{Symbol,Type}, Dict(v=>AlgebraicNumber for v in vars))
     @debug "Variables" varmap
@@ -148,24 +189,20 @@ end
 const NLModel = Dict{Symbol,Number}
 
 function parse_model(sp::SynthesisProblem, model::NLModel)
-    A, B = init(sp), body(sp)
-    body = Number[get(model, Symbol(string(b)), b) for b in B]
-    init = Number[get(model, Symbol(string(b)), b) for b in A]
-    Loop(vars(sp), params(sp), init, body)
+    _A, _B = init(sp), body(sp)
+    A = Number[get(model, Symbol(string(b)), b) for b in _A]
+    B = Number[get(model, Symbol(string(b)), b) for b in _B]
+    RecSystem(vars(sp), params(sp), A, B)
 end
 
-function solve(sp::SynthesisProblem, solver::S; kwargs...) where {S<:NLSolver}
-    timeout = get(kwargs, :timeout, 10)
-    stype = get(kwargs, :solver, Z3Solver)
-
-    solver = create_solver(sp, stype; kwargs...)
-    status, elapsed, model = NLSat.solve(solver, timeout = timeout)
+function solve(sp::SynthesisProblem; solver::Type{<:NLSolver}=Z3Solver, progress::Bool=false, timeout::Int=10)
+    _solver = create_solver(sp, solver; progress=progress)
+    status, elapsed, model = NLSat.solve(_solver, timeout = timeout)
     if status == NLSat.sat
-        return SynthResult(parse_model(sp, model), elapsed, S.info)
+        return SynthesisResult(parse_model(sp, model), elapsed, sp)
     end
-    SynthResult(status, elapsed, S.info)
+    SynthResult(status, elapsed, sp)
 end
-
 
 "Generate constraints ensuring that p is an algebraic relation."
 function cstr_algrel(sp::SynthesisProblem)
@@ -249,6 +286,14 @@ end
 
 # ------------------------------------------------------------------------------
 
+struct SynthesisResult
+    result::Union{RecSystem,NLStatus}
+    elapsed::TimePeriod
+    problem::SynthesisProblem
+end
+
+# ------------------------------------------------------------------------------
+
 function Base.summary(io::IO, rt::RecurrenceTemplate)
     compact = get(io, :compact, false)
     if compact
@@ -258,7 +303,7 @@ function Base.summary(io::IO, rt::RecurrenceTemplate)
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", rt::RecurrenceTemplate)
+function Base.show(io::IO, ::MIME"text/plain", rt::Union{RecurrenceTemplate,RecSystem})
     summary(io, rt)
     println(io, ":")
     init = rt.init * map(mkpoly, rt.params)
