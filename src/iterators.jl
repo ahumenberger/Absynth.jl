@@ -20,6 +20,28 @@ closedforms(rt::RecurrenceTemplate) = ClosedForms(rt, partitions(size(rt)))
 
 # ------------------------------------------------------------------------------
 
+struct RecSysIter
+    perm
+    kwargs
+end
+
+function iterate(it::RecSysIter)
+    vars, next = iterate(it.perm)
+    RecurrenceTemplate(vars; it.kwargs...), next
+end
+
+function iterate(it::RecSysIter, state)
+    s = iterate(it.perm, state)
+    s === nothing && return
+    RecurrenceTemplate(first(s); it.kwargs...), last(s)
+end
+
+# TODO: How to deal with templates where a permutation is useless?
+recurrence_systems(vars::Vector{Symbol}; kwargs...) =
+    RecSysIter(permutations(vars), kwargs)
+
+# ------------------------------------------------------------------------------
+
 struct Models
     solver::NLSolver
     problem::SynthesisProblem
