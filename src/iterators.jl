@@ -42,6 +42,16 @@ recurrence_systems(vars::Vector{Symbol}; kwargs...) =
 
 # ------------------------------------------------------------------------------
 
+function strategy_permutation(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; params::Vector{Symbol}=Symbol[])
+    @assert shape == UpperTriangular || shape == UnitUpperTriangular
+    part = partitions(length(vars))
+    recs = recurrence_systems(vars)
+    prod = Iterators.product(recs, part)
+    (SynthesisProblem(inv, first(args), ClosedFormTemplate(args...)) for args in prod)
+end
+
+# ------------------------------------------------------------------------------
+
 struct Models
     solver::NLSolver
     problem::SynthesisProblem

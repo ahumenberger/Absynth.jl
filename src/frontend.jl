@@ -1,9 +1,11 @@
 const SymOrNum = Union{Symbol,Number}
 
-FullMatrix(s::Int) = [mkpoly(mkvar("b$i$j")) for i in 1:s, j in 1:s]
-UpperTriangular(s::Int) = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:s, j in 1:s]
-UnitUpperTriangular(s::Int) = [j>i ? mkpoly(mkvar("b$i$j")) : i==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
-Companion(s::Int) = [i==s ? mkpoly(mkvar("b$i$j")) : i+1==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
+@enum MatrixShape Full UpperTriangular UnitUpperTriangular Companion
+
+_FullMatrix(s::Int) = [mkpoly(mkvar("b$i$j")) for i in 1:s, j in 1:s]
+_UpperTriangular(s::Int) = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:s, j in 1:s]
+_UnitUpperTriangular(s::Int) = [j>i ? mkpoly(mkvar("b$i$j")) : i==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
+_Companion(s::Int) = [i==s ? mkpoly(mkvar("b$i$j")) : i+1==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
 
 _add_const_one(M::Matrix) = _add_row_one(hcat(M, zeros(eltype(M), size(M, 1), 1)))
 
@@ -31,13 +33,13 @@ end
 
 function bodymatrix(s::Int, shape::Symbol)
     if shape == :Full
-        FullMatrix(s)
+        _FullMatrix(s)
     elseif shape == :UpperTriangular
-        UpperTriangular(s)
+        _UpperTriangular(s)
     elseif shape == :UnitUpperTriangular
-        UnitUpperTriangular(s)
+        _UnitUpperTriangular(s)
     elseif shape == :Companion
-        Companion(s)
+        _Companion(s)
     else
         error("Unknown matrix shape: $shape")
     end
