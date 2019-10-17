@@ -72,13 +72,13 @@ function _print_recsystem(io::IO, vars, body, init)
     lstr, rstr = lpar(h), rpar(h, " ")
     eq = symstr(h, "=")
 
-    lc = "\u2099"
-    lp, rp, plus = "", "", "\u208A" 
-    zero, one = "\u2080", "\u2081"
+    # lc = "\u2099"
+    # lp, rp, plus = "", "", "\u208A" 
+    # zero, one = "\u2080", "\u2081"
 
-    # lc = "n"
-    # lp, rp, plus = "(", ")", "+" 
-    # zero, one = "0", "1"
+    lc = "n"
+    lp, rp, plus = "(", ")", "+" 
+    zero, one = "0", "1"
 
     vars0 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", vars)), "\""=>"")
     vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", vars)), "\""=>"")
