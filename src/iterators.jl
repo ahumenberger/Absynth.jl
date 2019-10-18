@@ -62,10 +62,10 @@ end
 
 # ------------------------------------------------------------------------------
 
-function _run(strategy, solver::Type{<:NLSolver}, timeout::Int, maxsol::Number)
+function models(strategy, solver::Type{<:NLSolver}, timeout::Int, maxsol::Number)
     Iterators.flatten(Models(problem, solver, maxsol, timeout) for problem in strategy)
 end
 
 function run(strategy; solver::Type{<:NLSolver}=Z3, timeout::Int=2, maxsol::Number=1)
-    foreach(display, _run(strategy, solver, timeout, maxsol))
+    foreach(display, models(strategy, solver, timeout, maxsol))
 end
