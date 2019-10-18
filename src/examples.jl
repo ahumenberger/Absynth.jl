@@ -1,20 +1,22 @@
-export examples, example, varorders, varorder
+# export examples, example, varorders, varorder
 
-macro example(name, inv)
-    push!(_examples, name=>inv)
-end
-macro varorder(name, vars...)
-    push!(_varorder, name=>collect(vars))
-end
+# macro example(name, inv)
+#     push!(_examples, name=>inv)
+# end
+# macro varorder(name, vars...)
+#     push!(_varorder, name=>collect(vars))
+# end
 
-_examples = Dict{Symbol,Expr}()
-_varorder = Dict{Symbol,Vector{Symbol}}()
+const Example = NamedTuple{(:name, :inv, :vars, :kwargs),Tuple{Symbol, Invariant, Vector{Symbol}, Any}}
 
-examples() = _examples
-example(s) = s=>_examples[s]
+_examples = Vector{Example}()
+# _varorder = Dict{Symbol,Vector{Symbol}}()
 
-varorders() = _varorder
-varorder(s) = _varorder[s]
+# examples() = _examples
+# example(s) = s=>_examples[s]
+
+# varorders() = _varorder
+# varorder(s) = _varorder[s]
 
 # @example intcubicroot (1/4 + 3*r^2 == s && 1 + 4*x00+6*r^2 == 3*r+4*r^3+4*x)
 # @example cubes        (n^3 == x && 1 + 3*n + 3*n^2 == y && 6 + 6*n == z)
@@ -52,8 +54,12 @@ varorder(s) = _varorder[s]
 #     a = a + 2b + 1
 #     b = b + 1
 # end
-@example square (a == b^2)
-@varorder square a b
+push!(_examples, Example((
+    :square,
+    @invariant(a == b^2),
+    [:a, :b],
+    Dict()
+)))
 
 # Sum1
 # a, b, c = 0, 0, 1
@@ -62,8 +68,12 @@ varorder(s) = _varorder[s]
 #     b = b + c
 #     c = c + 2
 # end
-@example sum1 (1 + 2a == c && 4b == (c-1)^2)
-@varorder sum1 a b c
+push!(_examples, Example((
+    :sum1,
+    @invariant(1 + 2a == c && 4b == (c-1)^2),
+    [:a, :b, :c],
+    Dict()
+)))
 
 # Sum2
 # a, b, c, s = 0, 0, 1, 0
@@ -82,8 +92,12 @@ varorder(s) = _varorder[s]
 #     r = r - y
 #     q = q + 1
 # end
-@example eucliddiv (x(0) == y(0)*q + r)
-@varorder eucliddiv r q x y
+push!(_examples, Example((
+    :eucliddiv,
+    @invariant(x(0) == y(0)*q(n) + r(n)),
+    [:r, :q, :x, :y],
+    Dict(:params=>[:x, :y])
+)))
 
 # Integer Square Root - version 1
 # k, j, m = 0, 1, 1
@@ -122,8 +136,12 @@ varorder(s) = _varorder[s]
 #     z = z + 6
 #     n = n + 1
 # end
-@example cubes (n^3 == x && 1 + 3n + 3n^2 == y && 6 + 6n == z)
-@varorder cubes x y z n
+push!(_examples, Example((
+    :cubes,
+    @invariant(n^3 == x && 1 + 3n + 3n^2 == y && 6 + 6n == z),
+    [:x, :y, :z, :n],
+    Dict()
+)))
 
 # Petter 1
 # x, y = 0, 0
@@ -157,8 +175,12 @@ varorder(s) = _varorder[s]
 #     r = r + 1
 #     n = n - 1
 # end
-@example add1 (r == x(0)+y(0)-n)
-@varorder add1 r n x y
+push!(_examples, Example((
+    :add1,
+    @invariant(r(m) == x(0)+y(0)-n(m)),
+    [:r, :n, :x, :y],
+    Dict(:params=>[:x, :y])
+)))
 
 # r = 2x
 # n = y
@@ -170,3 +192,42 @@ varorder(s) = _varorder[s]
 # @varorder add2 r n x y
 
 # q^4 + 2 * q^3 * r + r^4 == 1 + q^2*r^2 + 2*q*r^3
+
+# ------------------------------------------------------------------------------
+
+function report3(examples::Vector{Example}; solvers=[Yices,Z3], timeout=2, maxsol=1, shapes=[UnitUpperTriangular, UpperTriangular, FullSymbolic])
+    progress = ProgressUnknown("Instances completed:")
+    df = DataFrame(Solver = Type{<:NLSolver}[], Instance = Any[], Shape = MatrixShape[], Status = NLStatus[], Elapsed = TimePeriod[], Result = Union{RecSystem,Nothing}[])
+    for ex in examples
+        for shape in shapes
+            strat = strategy_fixed2(ex.inv, copy(ex.vars), shape, [length(ex.vars)+1]; constone=true, ex.kwargs...)
+            for solver in solvers
+                sols = solutions(strat; solver=solver, timeout=timeout, maxsol=maxsol)
+                for res in sols
+                    push!(df, (solver, ex.name, shape, res.status, res.elapsed, res.recsystem))
+                    next!(progress)
+                end
+            end
+        end
+    end
+    finish!(progress)
+    df
+end
+
+function wide(df)
+    key = [:Instance, :Shape]
+    tab = unstack(df, key, :Solver, :Elapsed)
+    z3 = unstack(tab, :Instance, :Shape, :Z3Solver)
+    yices = unstack(tab, :Instance, :Shape, :YicesSolver)
+    rename!(z3, 
+        :UnitUpperTriangular => :Z3_UnitUpperTriangular, 
+        :UpperTriangular     => :Z3_UpperTriangular,
+        :FullSymbolic        => :Z3_FullSymbolic
+    )
+    rename!(yices, 
+        :UnitUpperTriangular => :Yices_UnitUpperTriangular, 
+        :UpperTriangular     => :Yices_UpperTriangular,
+        :FullSymbolic        => :Yices_FullSymbolic
+    )
+    join(yices, z3, on = :Instance, makeunique = true)
+end

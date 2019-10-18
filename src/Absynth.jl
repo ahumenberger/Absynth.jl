@@ -6,6 +6,9 @@ using LinearAlgebra
 using MultivariatePolynomials
 using DynamicPolynomials
 using Dates
+using DataFrames: DataFrame, unstack, rename!
+using ProgressMeter
+
 
 const Var = AbstractVariable
 const Poly = AbstractPolynomialLike
@@ -23,7 +26,6 @@ include("utils.jl")
 include("types.jl")
 include("cfinite.jl")
 include("show.jl")
-include("report.jl")
 include("poly.jl")
 include("macros.jl")
 include("examples.jl")
