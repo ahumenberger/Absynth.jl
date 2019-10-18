@@ -32,24 +32,21 @@ end
 
 # ------------------------------------------------------------------------------
 
-struct Models
+struct Solutions
     solver::NLSolver
     problem::SynthesisProblem
     maxsol::Number
     timeout::Int
 
-    function Models(p::SynthesisProblem, solver::Type{<:NLSolver}, maxsol::Number, timeout::Int)
+    function Solutions(p::SynthesisProblem; maxsol::Number=1, timeout::Int=2, solver::Type{<:NLSolver}=Z3)
         @assert maxsol >= 1
         new(create_solver(p, solver), p, maxsol, timeout)
     end
 end
 
-models(p::SynthesisProblem; maxsol::Number=1, timeout::Int=2, solver::Type{<:NLSolver}=Z3) =
-    Models(p, solver, maxsol, timeout)
+iterate(ms::Solutions) = iterate(ms, 0)
 
-iterate(ms::Models) = iterate(ms, 0)
-
-function iterate(ms::Models, state)
+function iterate(ms::Solutions, state)
     (state === nothing || state >= ms.maxsol) && return
     model, result = solve(ms.problem, ms.solver, timeout=ms.timeout)
     model === nothing && return result, nothing
@@ -65,8 +62,11 @@ end
 
 # ------------------------------------------------------------------------------
 
+solutions(strategy; kwargs...) =
+    Iterators.flatten(Solutions(problem; kwargs...) for problem in strategy)
+
 models(strategy; kwargs...) =
-    Iterators.flatten(models(problem; kwargs...) for problem in strategy)
+    Iterators.filter(Absynth.issat, solutions(strategy; kwargs...))
 
 function Base.run(strategy; solver::Type{<:NLSolver}=Z3, timeout::Int=2, maxsol::Number=1)
     foreach(display, models(strategy, solver, timeout, maxsol))
