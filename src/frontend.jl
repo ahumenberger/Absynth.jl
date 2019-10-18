@@ -308,6 +308,8 @@ struct SynthesisResult
     problem::SynthesisProblem
 end
 
+issat(s::SynthesisResult) = s.status == NLSat.sat
+
 # ------------------------------------------------------------------------------
 
 function Base.summary(io::IO, rt::RecurrenceTemplate)
