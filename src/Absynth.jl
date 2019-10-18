@@ -37,7 +37,7 @@ include("iterators.jl")
 export FullSymbolic, UpperTriangular, UnitUpperTriangular, Companion, UserSpecific
 export Invariant, @invariant
 export strategy_permutation, strategy_fixed
-export models
+export solutions, models
 
 # ------------------------------------------------------------------------------
 
