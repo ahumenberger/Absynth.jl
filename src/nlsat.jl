@@ -262,11 +262,11 @@ function solve(s::Z3Solver; timeout::Int=-1)
         write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
         close(io)
 
-        openproc(`z3 $path`, timeout=timeout) do lines
+        openproc(`z3 $path`, timeout=timeout) do _lines
             d = Dict{Symbol,Number}()
             parser = smtparser.SmtLibParser()
-            @warn "Filtering root-obj. Needs fix!"
-            filter!(x->!(occursin("root-obj", x)), lines)
+            lines = filter!(x->!(occursin("root-obj", x)), _lines)
+            _lines != lines && @warn "Sorry, I cannot parse algebraic numbers yet! Filtered root-obj."
             ls = parser.get_assignment_list(pyio.StringIO(join(lines)))
             for (var,val) in ls
                 cval = val.constant_value()
