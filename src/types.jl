@@ -50,6 +50,10 @@ struct Invariant
     end
 end
 
+macro invariant(x)
+    Invariant(x)
+end
+
 function program_variables(i::Invariant)
     ls = Symbol[]
     postwalk(i.x) do x

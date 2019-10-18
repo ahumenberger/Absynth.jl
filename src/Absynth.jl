@@ -34,7 +34,10 @@ include("examples.jl")
 include("frontend.jl")
 include("iterators.jl")
 
-export synth, report, rerun
+export FullSymbolic, UpperTriangular, UnitUpperTriangular, Companion, UserSpecific
+export Invariant, @invariant
+export strategy_permutation, strategy_fixed
+export models
 
 # ------------------------------------------------------------------------------
 
