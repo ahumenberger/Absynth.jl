@@ -93,7 +93,7 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
     end
     elapsed = Millisecond(round((time_ns()-start)/1e6))
     # Yices returns 0 and Z3 returns 1 on UNSAT
-    if success(P) || P.exitcode == 1
+    if P.exitcode >= 0
         lines = readlines(P)
         status = popfirst!(lines)
         if status == "sat"
@@ -103,7 +103,7 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
             return NLSat.unsat, elapsed, nothing
         end
 
-        @error("Unknown status: $status")
+        error("Unknown status: $status")
     end
     return NLSat.unknown, elapsed, nothing
 end
