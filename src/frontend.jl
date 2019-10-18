@@ -323,8 +323,11 @@ end
 
 function Base.show(io::IO, r::Union{RecurrenceTemplate,RecSystem})
     summary(io, r)
-    println(io, ":")
-    _show(io, r)
+    compact = get(io, :compact, false)
+    if !compact
+        println(io, ":")
+        _show(io, r)
+    end
 end
 
 function _show(io::IO, r::Union{RecurrenceTemplate,RecSystem})
