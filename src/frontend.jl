@@ -1,11 +1,11 @@
 const SymOrNum = Union{Symbol,Number}
 
-@enum MatrixShape Full UpperTriangular UnitUpperTriangular Companion
+@enum MatrixShape FullSymbolic UpperTriangular UnitUpperTriangular Companion
 
-_FullMatrix(s::Int) = [mkpoly(mkvar("b$i$j")) for i in 1:s, j in 1:s]
-_UpperTriangular(s::Int) = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:s, j in 1:s]
+_FullSymbolic(s::Int)        = [mkpoly(mkvar("b$i$j")) for i in 1:s, j in 1:s]
+_UpperTriangular(s::Int)     = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:s, j in 1:s]
 _UnitUpperTriangular(s::Int) = [j>i ? mkpoly(mkvar("b$i$j")) : i==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
-_Companion(s::Int) = [i==s ? mkpoly(mkvar("b$i$j")) : i+1==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
+_Companion(s::Int)           = [i==s ? mkpoly(mkvar("b$i$j")) : i+1==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
 
 _add_const_one(M::Matrix) = _add_row_one(hcat(M, zeros(eltype(M), size(M, 1), 1)))
 
@@ -31,18 +31,9 @@ function initmatrix(vars::Vector{Symbol}, params::Vector{SymOrNum})
     A
 end
 
-function bodymatrix(s::Int, shape::Symbol)
-    if shape == :Full
-        _FullMatrix(s)
-    elseif shape == :UpperTriangular
-        _UpperTriangular(s)
-    elseif shape == :UnitUpperTriangular
-        _UnitUpperTriangular(s)
-    elseif shape == :Companion
-        _Companion(s)
-    else
-        error("Unknown matrix shape: $shape")
-    end
+function bodymatrix(s::Int, shape::MatrixShape)
+    f = Meta.parse(string("_", shape))
+    eval(:($f($s)))
 end
 
 # ------------------------------------------------------------------------------
@@ -95,11 +86,11 @@ struct RecurrenceTemplate
     init::Matrix{<:Poly}
 end
 
-function RecurrenceTemplate(vars::Vector{Symbol}; constone::Bool = false, matrix::Symbol = :Full, params::Vector{Symbol}=Symbol[])
+function RecurrenceTemplate(vars::Vector{Symbol}, shape::MatrixShape; constone::Bool = false, params::Vector{Symbol}=Symbol[])
     size = length(vars)
     params = SymOrNum[params; 1]
 
-    B = bodymatrix(size, matrix)
+    B = bodymatrix(size, shape)
     A = initmatrix(vars, params)
 
     if constone
