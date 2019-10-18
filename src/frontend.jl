@@ -208,9 +208,9 @@ function solve(sp::SynthesisProblem, solver::S; timeout::Int) where {S<:NLSolver
     status, elapsed, model = NLSat.solve(solver, timeout = timeout)
     @debug "Solver result" status model
     if status == NLSat.sat
-        return model, SynthesisResult(parse_model(sp, model), elapsed, sp)
+        return model, SynthesisResult(status, parse_model(sp, model), elapsed, sp)
     end
-    nothing, SynthesisResult(status, elapsed, sp)
+    nothing, SynthesisResult(status, nothing, elapsed, sp)
 end
 
 function solve(sp::SynthesisProblem; solver::Type{<:NLSolver}=Z3Solver, progress::Bool=false, timeout::Int=10)
@@ -302,7 +302,8 @@ end
 # ------------------------------------------------------------------------------
 
 struct SynthesisResult
-    result::Union{RecSystem,NLStatus}
+    status::NLStatus
+    recsystem::Union{RecSystem,Nothing}
     elapsed::TimePeriod
     problem::SynthesisProblem
 end
@@ -318,9 +319,26 @@ function Base.summary(io::IO, rt::RecurrenceTemplate)
     end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", rt::Union{RecurrenceTemplate,RecSystem})
-    summary(io, rt)
+function Base.show(io::IO, r::Union{RecurrenceTemplate,RecSystem})
+    summary(io, r)
     println(io, ":")
-    init = rt.init * map(mkpoly, rt.params)
-    _print_recsystem(io, rt.vars, rt.body, init)
+    _show(io, r)
+end
+
+function _show(io::IO, r::Union{RecurrenceTemplate,RecSystem})
+    init = r.init * map(mkpoly, r.params)
+    _print_recsystem(io, r.vars, r.body, init)
+end
+
+function Base.show(io::IO, s::SynthesisResult)
+    compact = get(io, :compact, false)
+    if compact
+        print(io, "SynthesisResult($(s.status), $(s.elapsed))")
+    else
+        print(io, "SynthesisResult ($(s.status)) in $(s.elapsed)")
+        if !isnothing(s.recsystem)
+            println(io)
+            _show(io, s.recsystem)
+        end
+    end
 end
