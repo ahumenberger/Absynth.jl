@@ -1,11 +1,17 @@
 import Base: iterate
 
-closedform_systems(rt::RecurrenceTemplate) =
-    (ClosedFormTemplate(rt, part) for part in partitions(size(rt)))
+closedform_systems(rt::RecurrenceTemplate, iter) =
+    (ClosedFormTemplate(rt, part) for part in (isnothing(iter) ? partitions(size(rt)) : iter))
 
 # TODO: How to deal with templates where a permutation is useless?
-recurrence_systems(vars::Vector{Symbol}, shape::MatrixShape; kwargs...) =
-    (RecurrenceTemplate(perm, shape; kwargs...) for perm in permutations(vars))
+recurrence_systems(vars::Vector{Symbol}, shape::MatrixShape, iter=permutations(vars); kwargs...) =
+    (RecurrenceTemplate(perm, shape; kwargs...) for perm in (isnothing(iter) ? permutations(vars) : iter))
+
+synthesis_problems(inv::Invariant, recsys_iter, part_iter; kwargs...) = 
+    (SynthesisProblem(inv, r, c) for r in recsys_iter for c in closedform_systems(r, part_iter))
+
+synthesis_problems(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape, perm_iter, part_iter; kwargs...) =
+    synthesis_problems(inv, recurrence_systems(vars, shape, perm_iter; kwargs...), part_iter)
 
 # ------------------------------------------------------------------------------
 
@@ -14,17 +20,14 @@ recurrence_systems(vars::Vector{Symbol}, shape::MatrixShape; kwargs...) =
 _strategy(inv, recsystems, partitions) = 
     (SynthesisProblem(inv, first(args), ClosedFormTemplate(args...)) for args in Iterators.product(recsystems, partitions))
 
-function strategy_permutation(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; params::Vector{Symbol}=Symbol[])
+function strategy_permutation(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
     @assert shape == UpperTriangular || shape == UnitUpperTriangular
-    part = partitions(length(vars))
-    recs = recurrence_systems(vars, shape; params=params)
-    _strategy(inv, recs, part)
+    synthesis_problems(inv, vars, shape, nothing, nothing; kwargs...)
 end
 
-function strategy_fixed(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; params::Vector{Symbol}=Symbol[])
-    part = partitions(length(vars))
-    recs = [RecurrenceTemplate(vars, shape; params=params)]
-    _strategy(inv, recs, part)
+function strategy_fixed(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
+    rec = RecurrenceTemplate(vars, shape; kwargs...)
+    synthesis_problems(inv, [rec], nothing; kwargs...)
 end
 
 # ------------------------------------------------------------------------------
@@ -41,7 +44,7 @@ struct Models
     end
 end
 
-models(p::SynthesisProblem; maxsol::Number=Inf, timeout::Int=10, solver::Type{<:NLSolver}=Z3) =
+models(p::SynthesisProblem; maxsol::Number=1, timeout::Int=2, solver::Type{<:NLSolver}=Z3) =
     Models(p, solver, maxsol, timeout)
 
 iterate(ms::Models) = iterate(ms, 0)
@@ -62,9 +65,8 @@ end
 
 # ------------------------------------------------------------------------------
 
-function models(strategy, solver::Type{<:NLSolver}, timeout::Int, maxsol::Number)
-    Iterators.flatten(Models(problem, solver, maxsol, timeout) for problem in strategy)
-end
+models(strategy; kwargs...) =
+    Iterators.flatten(models(problem; kwargs...) for problem in strategy)
 
 function Base.run(strategy; solver::Type{<:NLSolver}=Z3, timeout::Int=2, maxsol::Number=1)
     foreach(display, models(strategy, solver, timeout, maxsol))
