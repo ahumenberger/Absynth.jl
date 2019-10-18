@@ -1,19 +1,12 @@
-# export examples, example, varorders, varorder
-
-# macro example(name, inv)
-#     push!(_examples, name=>inv)
-# end
-# macro varorder(name, vars...)
-#     push!(_varorder, name=>collect(vars))
-# end
+export examples, example
 
 const Example = NamedTuple{(:name, :inv, :vars, :kwargs),Tuple{Symbol, Invariant, Vector{Symbol}, Any}}
 
-_examples = Vector{Example}()
-# _varorder = Dict{Symbol,Vector{Symbol}}()
+_examples = Dict{Symbol,Example}()
 
-# examples() = _examples
-# example(s) = s=>_examples[s]
+example!(x::Example) = push!(_examples, x.name=>x)
+examples() = values(_examples) |> collect
+example(s) = _examples[s]
 
 # varorders() = _varorder
 # varorder(s) = _varorder[s]
@@ -54,7 +47,7 @@ _examples = Vector{Example}()
 #     a = a + 2b + 1
 #     b = b + 1
 # end
-push!(_examples, Example((
+example!(Example((
     :square,
     @invariant(a == b^2),
     [:a, :b],
@@ -68,7 +61,7 @@ push!(_examples, Example((
 #     b = b + c
 #     c = c + 2
 # end
-push!(_examples, Example((
+example!(Example((
     :sum1,
     @invariant(1 + 2a == c && 4b == (c-1)^2),
     [:a, :b, :c],
@@ -92,7 +85,7 @@ push!(_examples, Example((
 #     r = r - y
 #     q = q + 1
 # end
-push!(_examples, Example((
+example!(Example((
     :eucliddiv,
     @invariant(x(0) == y(0)*q(n) + r(n)),
     [:r, :q, :x, :y],
@@ -136,7 +129,7 @@ push!(_examples, Example((
 #     z = z + 6
 #     n = n + 1
 # end
-push!(_examples, Example((
+example!(Example((
     :cubes,
     @invariant(n^3 == x && 1 + 3n + 3n^2 == y && 6 + 6n == z),
     [:x, :y, :z, :n],
@@ -175,7 +168,7 @@ push!(_examples, Example((
 #     r = r + 1
 #     n = n - 1
 # end
-push!(_examples, Example((
+example!(Example((
     :add1,
     @invariant(r(m) == x(0)+y(0)-n(m)),
     [:r, :n, :x, :y],
