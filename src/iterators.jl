@@ -17,9 +17,6 @@ synthesis_problems(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape, per
 
 # TODO: Find better names for strategies
 
-_strategy(inv, recsystems, partitions) = 
-    (SynthesisProblem(inv, first(args), ClosedFormTemplate(args...)) for args in Iterators.product(recsystems, partitions))
-
 function strategy_permutation(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
     @assert shape == UpperTriangular || shape == UnitUpperTriangular
     synthesis_problems(inv, vars, shape, nothing, nothing; kwargs...)
@@ -67,7 +64,3 @@ solutions(strategy; kwargs...) =
 
 models(strategy; kwargs...) =
     Iterators.filter(Absynth.issat, solutions(strategy; kwargs...))
-
-function Base.run(strategy; solver::Type{<:NLSolver}=Z3, timeout::Int=2, maxsol::Number=1)
-    foreach(display, models(strategy, solver, timeout, maxsol))
-end

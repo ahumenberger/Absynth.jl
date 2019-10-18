@@ -1,7 +1,5 @@
 module Absynth
 
-using Logging
-using Latexify
 using MacroTools: walk, postwalk, @capture, @match, replace, striplines
 using Combinatorics
 using LinearAlgebra
@@ -24,8 +22,6 @@ export YicesSolver, Z3Solver, Yices, Z3
 include("utils.jl")
 include("types.jl")
 include("cfinite.jl")
-# include("constraints.jl")
-# include("synthesizer.jl")
 include("show.jl")
 include("report.jl")
 include("poly.jl")
@@ -38,15 +34,5 @@ export FullSymbolic, UpperTriangular, UnitUpperTriangular, Companion, UserSpecif
 export Invariant, @invariant
 export strategy_permutation, strategy_fixed
 export solutions, models
-
-# ------------------------------------------------------------------------------
-
-_latex_logger = NullLogger()
-latex_logger(l::AbstractLogger) = global _latex_logger = l
-latex_logger() = _latex_logger
-
-export latex_logger
-
-# ------------------------------------------------------------------------------
 
 end # module
