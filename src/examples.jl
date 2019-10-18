@@ -195,16 +195,16 @@ push!(_examples, Example((
 
 # ------------------------------------------------------------------------------
 
-function report3(examples::Vector{Example}; solvers=[Yices,Z3], timeout=2, maxsol=1, shapes=[UnitUpperTriangular, UpperTriangular, FullSymbolic])
+function Base.run(examples::Vector{Example}; solvers=[Yices,Z3], timeout=2, maxsol=1, shapes=[UnitUpperTriangular, UpperTriangular, FullSymbolic])
     progress = ProgressUnknown("Instances completed:")
-    df = DataFrame(Solver = Type{<:NLSolver}[], Instance = Any[], Shape = MatrixShape[], Status = NLStatus[], Elapsed = TimePeriod[], Result = Union{RecSystem,Nothing}[])
+    df = DataFrame(Solver = Type{<:NLSolver}[], Instance = Any[], Shape = MatrixShape[], Status = NLStatus[], Elapsed = Any[], Result = Union{RecSystem,Nothing}[])
     for ex in examples
         for shape in shapes
             strat = strategy_fixed2(ex.inv, copy(ex.vars), shape, [length(ex.vars)+1]; constone=true, ex.kwargs...)
             for solver in solvers
                 sols = solutions(strat; solver=solver, timeout=timeout, maxsol=maxsol)
                 for res in sols
-                    push!(df, (solver, ex.name, shape, res.status, res.elapsed, res.recsystem))
+                    push!(df, (solver, ex.name, shape, res.status, res.status == NLSat.timeout ? "-" : res.elapsed, res.recsystem))
                     next!(progress)
                 end
             end
