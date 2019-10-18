@@ -42,12 +42,20 @@ recurrence_systems(vars::Vector{Symbol}; kwargs...) =
 
 # ------------------------------------------------------------------------------
 
+_strategy(inv, recsystems, partitions) = 
+    (SynthesisProblem(inv, first(args), ClosedFormTemplate(args...)) for args in Iterators.product(recsystems, partitions))
+
 function strategy_permutation(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; params::Vector{Symbol}=Symbol[])
     @assert shape == UpperTriangular || shape == UnitUpperTriangular
     part = partitions(length(vars))
     recs = recurrence_systems(vars)
-    prod = Iterators.product(recs, part)
-    (SynthesisProblem(inv, first(args), ClosedFormTemplate(args...)) for args in prod)
+    _strategy(inv, recs, part)
+end
+
+function strategy_fixed(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; params::Vector{Symbol}=Symbol[])
+    part = partitions(length(vars))
+    recs = [RecurrenceTemplate(vars, shape; params=params)]
+    _strategy(inv, recs, part)
 end
 
 # ------------------------------------------------------------------------------
