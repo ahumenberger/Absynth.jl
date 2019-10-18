@@ -1,11 +1,12 @@
 const SymOrNum = Union{Symbol,Number}
 
-@enum MatrixShape FullSymbolic UpperTriangular UnitUpperTriangular Companion
+@enum MatrixShape FullSymbolic UpperTriangular UnitUpperTriangular Companion UserSpecific
 
 _FullSymbolic(s::Int)        = [mkpoly(mkvar("b$i$j")) for i in 1:s, j in 1:s]
 _UpperTriangular(s::Int)     = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:s, j in 1:s]
 _UnitUpperTriangular(s::Int) = [j>i ? mkpoly(mkvar("b$i$j")) : i==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
 _Companion(s::Int)           = [i==s ? mkpoly(mkvar("b$i$j")) : i+1==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
+_UserSpecific(s::Int)        = error("Should not be called")
 
 _add_const_one(M::Matrix) = _add_row_one(hcat(M, zeros(eltype(M), size(M, 1), 1)))
 
@@ -84,9 +85,10 @@ struct RecurrenceTemplate
     params::Vector{SymOrNum}
     body::Matrix{<:Poly}
     init::Matrix{<:Poly}
+    shape::MatrixShape
 end
 
-function RecurrenceTemplate(vars::Vector{Symbol}, shape::MatrixShape; constone::Bool = false, params::Vector{Symbol}=Symbol[])
+function RecurrenceTemplate(vars::Vector{Symbol}, shape::MatrixShape; constone::Bool=false, params::Vector{Symbol}=Symbol[])
     size = length(vars)
     params = SymOrNum[params; 1]
 
@@ -99,7 +101,7 @@ function RecurrenceTemplate(vars::Vector{Symbol}, shape::MatrixShape; constone::
         A = _add_row_one(A)
     end
     
-    RecurrenceTemplate(vars, params, B, A)
+    RecurrenceTemplate(vars, params, B, A, shape)
 end
 
 Base.size(rt::RecurrenceTemplate) = length(rt.vars)
