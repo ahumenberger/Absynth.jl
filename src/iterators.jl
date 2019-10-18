@@ -27,6 +27,11 @@ function strategy_fixed(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape
     synthesis_problems(inv, [rec], nothing; kwargs...)
 end
 
+function strategy_fixed2(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape, roots::Vector{Int}; kwargs...)
+    rec = RecurrenceTemplate(vars, shape; kwargs...)
+    synthesis_problems(inv, [rec], [roots]; kwargs...)
+end
+
 # ------------------------------------------------------------------------------
 
 struct Solutions
