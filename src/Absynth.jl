@@ -28,7 +28,7 @@ include("invariant.jl")
 include("cfinite.jl")
 include("show.jl")
 include("examples.jl")
-include("frontend.jl")
+include("types.jl")
 include("iterators.jl")
 
 export FullSymbolic, UpperTriangular, UnitUpperTriangular, Companion, UserSpecific
