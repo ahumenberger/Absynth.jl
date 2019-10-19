@@ -23,11 +23,10 @@ const Z3 = Z3Solver
 export YicesSolver, Z3Solver, Yices, Z3
 
 include("utils.jl")
-include("types.jl")
+include("poly.jl")
+include("invariant.jl")
 include("cfinite.jl")
 include("show.jl")
-include("poly.jl")
-include("macros.jl")
 include("examples.jl")
 include("frontend.jl")
 include("iterators.jl")
