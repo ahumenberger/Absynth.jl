@@ -19,14 +19,12 @@ const NLModel = Dict{Symbol,Number}
 const pyio = PyNULL()
 const smtparser = PyNULL()
 const z3 = PyNULL()
-const yices = PyNULL()
 
 z3_typemap = Dict{Type,Function}()
-yices_typemap = Dict{Type,PyObject}()
 
 function _print_available(s::String, available::Bool)
     io = stdout
-    status = available ? "available" : "not available"
+    status = available ? "found" : "not found"
     color = available ? :green : :red
     print(io, s)
     print(io, "\t")
@@ -37,26 +35,14 @@ end
 function __init__()
     copy!(smtparser, pyimport("pysmt.smtlib.parser"))
     copy!(pyio, pyimport("io"))
-    try
-        copy!(z3, pyimport("z3"))
-        push!(z3_typemap, Int             => z3.Int)
-        push!(z3_typemap, Bool            => z3.Bool)
-        push!(z3_typemap, AlgebraicNumber => z3.Real)
-        push!(z3_typemap, Rational        => z3.Real)
-        _print_available("Z3", true)
-    catch
-        _print_available("Z3", false)
-    end
+    copy!(z3, pyimport("z3"))
+    push!(z3_typemap, Int             => z3.Int)
+    push!(z3_typemap, Bool            => z3.Bool)
+    push!(z3_typemap, AlgebraicNumber => z3.Real)
+    push!(z3_typemap, Rational        => z3.Real)
 
-    try
-        copy!(yices, pyimport("yices"))
-        push!(yices_typemap, Int              => yices.Types.int_type())
-        push!(yices_typemap, Bool             => yices.Types.bool_type())
-        push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
-        push!(yices_typemap, Rational         => yices.Types.real_type())
-        _print_available("Yices", true)
-    catch
-        _print_available("Yices", false)
+    for s in [Z3Solver, YicesSolver]
+        _print_available(program_name(s), isavailable(s))
     end
 end
 
@@ -70,6 +56,7 @@ export AlgebraicNumber
 @enum NLStatus sat unsat unknown timeout
 
 abstract type NLSolver end
+abstract type SMTSolver <: NLSolver end
 
 function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
 function solve(s::NLSolver; timeout::Int = -1) end
@@ -110,105 +97,36 @@ end
 
 # ------------------------------------------------------------------------------
 
-prefix(x::Symbol) = string(x)
-function prefix(x::Expr)
-    s = sprint(Meta.show_sexpr, x)
-    s = Base.replace(s, ":call, " => "")
-    s = Base.replace(s, ":" => "")
-    s = Base.replace(s, "," => "")
-    s = Base.replace(s, "(==)" => "=")
-    s = Base.replace(s, "!=" => "distinct")
-    s = Base.replace(s, "||" => "or")
-    s = Base.replace(s, "//" => "/")
-    s
-end
-
-prefix(c::Constraint{EQ}) = string("(= ", prefix(c.poly), " 0)")
-prefix(c::Constraint{NEQ}) = string("(distinct ", prefix(c.poly), " 0)")
-
-prefix(c::Clause) = length(c) == 1 ? prefix(first(c)) : string("(or ", join([prefix(x) for x in c], " "), ")")
-
-mutable struct YicesSolver <: NLSolver
-    vars::Dict{Symbol,Type}
-    cs::ClauseSet
-    pyvars::Dict{Symbol, PyObject}
-    cstr::Vector{PyObject}
-    input::Vector{String}
-    YicesSolver() = new(Dict(), ClauseSet(), Dict(), [], [])
-end
-
-function variables!(s::YicesSolver, d::Dict{Symbol,Type})
-    for (v,t) in d
-        pyvar = yices.Terms.new_uninterpreted_term(yices_typemap[t], string(v))
-        push!(s.pyvars, v=>pyvar)
-        push!(s.vars, v=>t)
-    end
-end
-
-function solve(s::YicesSolver; timeout::Int = -1)
-    cfg = yices.Config()
-    cfg.default_config_for_logic("QF_NRA")
-    ctx = yices.Context(cfg)
-
-    for c in s.cs
-        prefix_str = prefix(c)
-        term = yices.Terms.parse_term(prefix_str)
-        # push!(s.cstr, term)
-        push!(s.input, yices.Terms.to_string(term, 200))
-    end
-    # ctx.assert_formulas(s.cstr)
-
-    mktemp() do path, io
-        write_yices(io, s)
-        openproc(`yices --logic=QF_NRA $path`, timeout=timeout) do lines
-            d = Dict{Symbol,Number}()
-            for l in lines
-                ll = l[4:end-1]
-                (x,y) = split(ll, limit=2)
-                sym = Symbol(x)
-                val = parsenumber(y)
-                push!(d, sym=>val)
-            end
-            d
-        end
-    end
-end
-
-function write_yices(io::IO, s::YicesSolver)
-    for v in keys(s.vars)
-        write(io, "(define $v::real)\n")
-    end
-    for x in s.input
-        write(io, "(assert $x)\n")
-    end
-    write(io, "(check)\n")
-    write(io, "(show-model)\n")
-    close(io)
-end
-
-function parsenumber(s::AbstractString)
-    T = Int
-    ls = split(string(s), '/', keepempty=false)
-    if length(ls) == 1
-        return parse(T, ls[1])
-    else
-        @assert length(ls) == 2
-        return parse(T, ls[1]) // parse(T, ls[2])
-    end
-end
-
-# ------------------------------------------------------------------------------
-
-
-mutable struct Z3Solver <: NLSolver
+mutable struct YicesSolver <: SMTSolver
     ptr::PyObject
     vars::Dict{Symbol, PyObject}
     cs::ClauseSet
     cstr::Vector{PyObject}
-    Z3Solver() = new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
+    function YicesSolver()
+        @assert isavailable(YicesSolver)
+        new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
+    end
 end
 
-function variables!(s::Z3Solver, d::Dict{Symbol,Type})
+program_name(::Type{YicesSolver}) = "yices-smt2"
+
+mutable struct Z3Solver <: SMTSolver
+    ptr::PyObject
+    vars::Dict{Symbol, PyObject}
+    cs::ClauseSet
+    cstr::Vector{PyObject}
+    function Z3Solver()
+        @assert isavailable(Z3Solver)
+        new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
+    end
+end
+
+program_name(::Type{Z3Solver}) = "z3"
+
+program_name(::T) where {T<:SMTSolver} = program_name(T)
+isavailable(s::Type{T}) where {T<:SMTSolver} = !isnothing(Sys.which(program_name(T)))
+
+function variables!(s::SMTSolver, d::Dict{Symbol,Type})
     for (var, type) in d
         push!(s.vars, var => z3_typemap[type](string(var)))
         if type == Rational
@@ -221,7 +139,11 @@ function variables!(s::Z3Solver, d::Dict{Symbol,Type})
     s.vars
 end
 
-function _set_constraints(s::Z3Solver)
+replace_pow(x::Expr) = postwalk(x) do y
+    @capture(y, b_^e_) ? Expr(:call, :*, fill(b, e)...) : y
+end
+
+function _set_constraints(s::SMTSolver)
     ls = Expr[]
     for (svar, z3var) in s.vars
         push!(ls, Expr(:(=), svar, z3var))
@@ -232,6 +154,7 @@ function _set_constraints(s::Z3Solver)
         else
             :(z3.Or($([convert(Expr, c) for c in cl]...)))
         end
+        clause = replace_pow(clause)
         expr = Expr(:block, ls..., clause)
         z3clause = eval(expr)
         s.ptr.add(z3clause)
@@ -239,30 +162,17 @@ function _set_constraints(s::Z3Solver)
     end
 end
 
-function _check(s::Z3Solver)
-    # open("/Users/ahumenberger/Downloads/cstr.smt2", "w") do io
-    #     write(io, s.ptr.to_smt2())
-    # end
-    result = s.ptr.check()
-    if result == z3.sat
-        return NLSat.sat
-    elseif result == z3.unsat
-        return NLSat.unsat
-    elseif result == z3.unknown
-        return NLSat.unknown
-    end
-    @info "Unknown result: $result"
-    return NLSat.timeout
-end
-
-function solve(s::Z3Solver; timeout::Int=-1)
+function solve(s::SMTSolver; timeout::Int=-1)
     mktemp() do path, io
         _set_constraints(s)
+        write(io, "(set-logic QF_NRA)")
         write(io, s.ptr.to_smt2())
         write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
         close(io)
 
-        openproc(`z3 $path`, timeout=timeout) do _lines
+        cp(path, "/Users/ahumenberger/Downloads/test.smt2", force=true)
+
+        openproc(`$(program_name(s)) $path`, timeout=timeout) do _lines
             d = Dict{Symbol,Number}()
             parser = smtparser.SmtLibParser()
             lines = filter!(x->!(occursin("root-obj", x)), _lines)
