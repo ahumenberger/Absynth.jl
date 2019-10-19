@@ -15,19 +15,22 @@ synthesis_problems(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape, per
 
 # ------------------------------------------------------------------------------
 
-# TODO: Find better names for strategies
-
-function strategy_permutation(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
-    @assert shape == UpperTriangular || shape == UnitUpperTriangular
+function strategy_all(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
+    @assert shape == UpperTriangular || shape == UnitUpperTriangular || shape == UserSpecific
     synthesis_problems(inv, vars, shape, nothing, nothing; kwargs...)
 end
 
-function strategy_fixed(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
+function strategy_permutations(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape, roots::Vector{Int}; kwargs...)
+    @assert shape == UpperTriangular || shape == UnitUpperTriangular || shape == UserSpecific
+    synthesis_problems(inv, vars, shape, nothing, [roots]; kwargs...)
+end
+
+function strategy_partitions(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
     rec = RecurrenceTemplate(vars, shape; kwargs...)
     synthesis_problems(inv, [rec], nothing; kwargs...)
 end
 
-function strategy_fixed2(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape, roots::Vector{Int}; kwargs...)
+function strategy_fixed(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape, roots::Vector{Int}; kwargs...)
     rec = RecurrenceTemplate(vars, shape; kwargs...)
     synthesis_problems(inv, [rec], [roots]; kwargs...)
 end

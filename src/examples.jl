@@ -204,7 +204,7 @@ function Base.run(examples::Vector{Example}; solvers=[Yices,Z3], timeout=2, maxs
     df = DataFrame(Solver = Type{<:NLSolver}[], Instance = Any[], Shape = MatrixShape[], Status = NLStatus[], Elapsed = Any[], Result = Union{RecSystem,Nothing}[])
     for ex in examples
         for shape in shapes
-            strat = strategy_fixed2(ex.inv, copy(ex.vars), shape, [length(ex.vars)+1]; constone=true, ex.kwargs...)
+            strat = strategy_fixed(ex.inv, copy(ex.vars), shape, [length(ex.vars)+1]; constone=true, ex.kwargs...)
             for solver in solvers
                 sols = solutions(strat; solver=solver, timeout=timeout, maxsol=maxsol)
                 for res in sols
