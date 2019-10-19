@@ -8,38 +8,24 @@ example!(x::Example) = push!(_examples, x.name=>x)
 examples() = values(_examples) |> collect
 example(s) = _examples[s]
 
-# varorders() = _varorder
-# varorder(s) = _varorder[s]
-
-# @example intcubicroot (1/4 + 3*r^2 == s && 1 + 4*x00+6*r^2 == 3*r+4*r^3+4*x)
-# @example cubes        (n^3 == x && 1 + 3*n + 3*n^2 == y && 6 + 6*n == z)
-# @example intsqrt2     (j == 2*k+1 && (1+j)^2 == 4*m)
-# @example intsqrt1     (y00*2 + r == r^2 + 2*y)
-# @example dijkstra     (r + q*y00 == r00)
-# @example ex0          (x*y == 2*x)
-# @example ex1          (a == b^2)
-# @example ex2          (1 + 2*a == c && 4*b == (c-1)^2)
-# @example ex3          (1 + 2*a == c && b + c == 1 + s && c*(c+2) == 3 + 4*s)
-
-
-# @varorder intcubicroot x s r
-# @varorder cubes        x y z n
-# @varorder intsqrt1     y r
-# @varorder intsqrt2     k j m
-# @varorder dijkstra     x r q y
-# @varorder ex1          a b
-
 # Double
 # x, y = 0, 1
 # while true
 #     x = 2x
 #     y = 1/2 y + 1
 # end
-# @example double1 (x*y == 2x)
-# @varorder double1 x y
-
-# @example double2 (x == 2y)
-# @varorder double2 x y
+example!(Example((
+    :double1,
+    @invariant(x*y == 2x),
+    [:x, :y],
+    Dict()
+)))
+example!(Example((
+    :double2,
+    @invariant(x == 2y),
+    [:x, :y],
+    Dict()
+)))
 
 # Square
 # a, b = 0, 0
@@ -76,8 +62,12 @@ example!(Example((
 #     c = c + 2
 #     s = s + 2a + 1
 # end
-# @example sum2 (1 + 2a == c && b + c == 1 + s && c*(c+2) == 3 + 4s)
-# @varorder sum2 s a b c
+example!(Example((
+    :sum2,
+    @invariant(1 + 2a == c && b + c == 1 + s && c*(c+2) == 3 + 4s),
+    [:s, :a, :b, :c],
+    Dict()
+)))
 
 # eucliddiv
 # r, q = x, 0
@@ -99,8 +89,12 @@ example!(Example((
 #     j = j + 2
 #     m = m + j
 # end
-# @example intsqrt1 (j == 1 + 2k && (j+1)^2 == 4m)
-# @varorder intsqrt1 m k j
+example!(Example((
+    :intsqrt1,
+    @invariant(j == 1 + 2k && (j+1)^2 == 4m),
+    [:m, :k, :j],
+    Dict()
+)))
 
 # Integer Square Root - version 2
 # y, r = 1/2*a, 0
@@ -108,6 +102,13 @@ example!(Example((
 #     y = y - r
 #     r = r + 1
 # end
+example!(Example((
+    :intsqrt2,
+    @invariant(a(0) + r == r^2 + 2y),
+    [:y, :r, :a],
+    Dict(:params=>[:a])
+)))
+
 # @example intsqrt2 (a00 + r == r^2 + 2y)
 # @varorder intsqrt2 y r a
 
@@ -118,8 +119,12 @@ example!(Example((
 #     s = s + 6r + 3
 #     r = r + 1
 # end
-# @example intcbrt (1/4 + 3r^2 == s && 1 + 4*a00 + 6r^2 == 3r + 4r^3 + 4x)
-# @varorder intcbrt x s r a
+example!(Example((
+    :intcbrt,
+    @invariant(1/4 + 3r^2 == s && 1 + 4*a(0) + 6r^2 == 3r + 4r^3 + 4x),
+    [:x, :s, :r, :a],
+    Dict(:params=>[:a])
+)))
 
 # Consecutive Cubes
 # n, x, y, z = 0, 0, 1, 6
@@ -181,10 +186,12 @@ example!(Example((
 #     r = r + 1
 #     n = n - 1
 # end
-# @example add2 (r == 2*x00+y00-n)
-# @varorder add2 r n x y
-
-# q^4 + 2 * q^3 * r + r^4 == 1 + q^2*r^2 + 2*q*r^3
+example!(Example((
+    :add2,
+    @invariant(r(m) == 2*x(0)+y(0)-n(m)),
+    [:r, :n, :x, :y],
+    Dict(:params=>[:x, :y])
+)))
 
 # ------------------------------------------------------------------------------
 
