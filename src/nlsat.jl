@@ -170,8 +170,6 @@ function solve(s::SMTSolver; timeout::Int=-1)
         write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
         close(io)
 
-        cp(path, "/Users/ahumenberger/Downloads/test.smt2", force=true)
-
         openproc(`$(program_name(s)) $path`, timeout=timeout) do _lines
             d = Dict{Symbol,Number}()
             parser = smtparser.SmtLibParser()
