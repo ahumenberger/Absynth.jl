@@ -63,10 +63,10 @@ function sequentialize(M::Matrix, v::Vector)
     B[setdiff(1:end, zcols), setdiff(1:end, zcols)], V[setdiff(1:end, zcols)]
 end
 
-function code(l::RecSystem)
-    body, vars = sequentialize(l.body, l.vars)
+function loop(l::RecSystem)
+    body, vars = sequentialize(l.body, map(mkvar, l.vars))
     lhss = (Meta.parse ∘ string).(body * vars)
-    init = [:($rhs = $lhs) for (rhs,lhs) in zip(l.vars, l.init*l.params)]
+    init = [:($rhs = $lhs) for (rhs,lhs) in zip(l.vars, l.init*map(mkpoly, l.params))]
     assign = [:($rhs = $lhs) for (rhs,lhs) in zip(vars, lhss)]
     striplines(quote
         $(init...)

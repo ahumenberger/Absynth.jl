@@ -35,5 +35,6 @@ export FullSymbolic, UpperTriangular, UnitUpperTriangular, Companion, UserSpecif
 export Invariant, @invariant
 export strategy_all, strategy_permutations, strategy_partitions, strategy_fixed
 export solutions, models
+export loop
 
 end # module
