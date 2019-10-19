@@ -22,12 +22,13 @@ const z3 = PyNULL()
 
 z3_typemap = Dict{Type,Function}()
 
-function _print_available(s::String, available::Bool)
+function _print_available(s::String, available::Bool, maxlen::Int)
     io = stdout
     status = available ? "found" : "not found"
     color = available ? :green : :red
-    print(io, s)
-    print(io, "\t")
+    print(io, " ", s)
+    print(io, fill(" ", maxlen - length(s))...)
+    print(io, " => ")
     printstyled(io, status, color=color)
     print(io, "\n")
 end
@@ -41,9 +42,13 @@ function __init__()
     push!(z3_typemap, AlgebraicNumber => z3.Real)
     push!(z3_typemap, Rational        => z3.Real)
 
-    for s in [Z3Solver, YicesSolver]
-        _print_available(program_name(s), isavailable(s))
+    solvers = [Z3Solver, YicesSolver]
+    len = maximum(length(string(program_name(s))) for s in solvers)
+    for s in solvers
+        _print_available(program_name(s), isavailable(s), len)
     end
+
+    !any(map(isavailable, solvers)) && @warn("No solver available.")
 end
 
 # ------------------------------------------------------------------------------
