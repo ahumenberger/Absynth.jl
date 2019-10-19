@@ -147,8 +147,12 @@ example!(Example((
 #     x = x + y^1
 #     y = y + 1
 # end
-# @example petter1 (y^2 == 2*x+y)
-# @varorder petter1 x y
+example!(Example((
+    :petter1,
+    @invariant(y^2 == 2*x+y),
+    [:x, :y],
+    Dict()
+)))
 
 # Petter 2
 # x, y = 0, 0
