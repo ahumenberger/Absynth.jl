@@ -77,6 +77,12 @@ const smt_solvers = Dict(
     :CVC4Solver  => "cvc4"
 )
 
+const smt_params = Dict(
+    :Z3Solver    => [],
+    :YicesSolver => [],
+    :CVC4Solver  => ["-m", "--lang=smt"]
+)
+
 # ------------------------------------------------------------------------------
 
 abstract type AlgebraicNumber end
@@ -165,10 +171,12 @@ for (name, program) in smt_solvers
         end
 
         program_name(::Type{$(name)}) = $(program)
+        program_args(::Type{$(name)}) = $(smt_params[name])
     end |> eval
 end
 
 program_name(::T) where {T<:SMTSolver} = program_name(T)
+program_args(::T) where {T<:SMTSolver} = program_args(T)
 isavailable(s::Type{T}) where {T<:SMTSolver} = !isnothing(Sys.which(program_name(T)))
 
 function variables!(s::SMTSolver, d::Dict{Symbol,Type})
@@ -191,7 +199,7 @@ function solve(s::SMTSolver; timeout::Int=-1)
         write_smt(io, s)
         close(io)
 
-        openproc(`$(program_name(s)) $path`, timeout=timeout) do _lines
+        openproc(`$(program_name(s)) $(program_args(s)) $path`, timeout=timeout) do _lines
             d = Dict{Symbol,Number}()
             parser = smtparser.SmtLibParser()
             lines = filter!(x->!(occursin("root-obj", x)), _lines)
