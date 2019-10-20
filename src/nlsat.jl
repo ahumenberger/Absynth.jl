@@ -114,8 +114,8 @@ end
 tosmt(s::AbstractSMTSolver, x::Expr) = postwalk(preprocess_smt(x)) do sym
     if issymbol(sym)
         :(pysmt.Symbol($(string(sym)), $(pysmt_typemap[s.vars[sym]])))
-    elseif sym isa Int
-        :(pysmt.Real($sym))
+    elseif sym isa Number
+        :(pysmt.Real(float($sym)))
     else
         get(pysmt_opmap, sym, sym)
     end
