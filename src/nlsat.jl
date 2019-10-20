@@ -42,7 +42,7 @@ function __init__()
     push!(z3_typemap, AlgebraicNumber => z3.Real)
     push!(z3_typemap, Rational        => z3.Real)
 
-    solvers = (eval(k) for k in keys(_smt_solvers))
+    solvers = (eval(k) for k in keys(smt_solvers))
     len = maximum(length(string(program_name(s))) for s in solvers)
     for s in solvers
         _print_available(program_name(s), isavailable(s), len)
@@ -53,7 +53,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-_smt_solvers = Dict(
+const smt_solvers = Dict(
     :Z3Solver    => "z3",
     :YicesSolver => "yices-smt",
     :CVC4Solver  => "cvc4"
@@ -110,7 +110,7 @@ end
 
 # ------------------------------------------------------------------------------
 
-for (name, program) in _smt_solvers
+for (name, program) in smt_solvers
     quote
         mutable struct $(name) <: SMTSolver
             ptr::PyObject
