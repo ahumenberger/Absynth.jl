@@ -42,7 +42,7 @@ function __init__()
     push!(z3_typemap, AlgebraicNumber => z3.Real)
     push!(z3_typemap, Rational        => z3.Real)
 
-    solvers = [Z3Solver, YicesSolver]
+    solvers = (eval(k) for k in keys(_smt_solvers))
     len = maximum(length(string(program_name(s))) for s in solvers)
     for s in solvers
         _print_available(program_name(s), isavailable(s), len)
@@ -50,6 +50,14 @@ function __init__()
 
     !any(map(isavailable, solvers)) && @warn("No solver available.")
 end
+
+# ------------------------------------------------------------------------------
+
+_smt_solvers = Dict(
+    :Z3Solver    => "z3",
+    :YicesSolver => "yices-smt",
+    :CVC4Solver  => "cvc4"
+)
 
 # ------------------------------------------------------------------------------
 
@@ -102,31 +110,22 @@ end
 
 # ------------------------------------------------------------------------------
 
-mutable struct YicesSolver <: SMTSolver
-    ptr::PyObject
-    vars::Dict{Symbol, PyObject}
-    cs::ClauseSet
-    cstr::Vector{PyObject}
-    function YicesSolver()
-        @assert isavailable(YicesSolver)
-        new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
-    end
+for (name, program) in _smt_solvers
+    quote
+        mutable struct $(name) <: SMTSolver
+            ptr::PyObject
+            vars::Dict{Symbol, PyObject}
+            cs::ClauseSet
+            cstr::Vector{PyObject}
+            function $(name)()
+                @assert isavailable($(name))
+                new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
+            end
+        end
+
+        program_name(::Type{$(name)}) = $(program)
+    end |> eval
 end
-
-program_name(::Type{YicesSolver}) = "yices-smt2"
-
-mutable struct Z3Solver <: SMTSolver
-    ptr::PyObject
-    vars::Dict{Symbol, PyObject}
-    cs::ClauseSet
-    cstr::Vector{PyObject}
-    function Z3Solver()
-        @assert isavailable(Z3Solver)
-        new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
-    end
-end
-
-program_name(::Type{Z3Solver}) = "z3"
 
 program_name(::T) where {T<:SMTSolver} = program_name(T)
 isavailable(s::Type{T}) where {T<:SMTSolver} = !isnothing(Sys.which(program_name(T)))
