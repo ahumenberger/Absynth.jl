@@ -1,8 +1,9 @@
 module NLSat
 
-export NLSolver, Z3Solver, YicesSolver
+export NLSolver, SMTSolver
 export NLStatus, NLModel
 export variables!, constraints!, solve
+export exists, program_name
 
 using PyCall
 using DelimitedFiles
@@ -27,17 +28,6 @@ pysmt_relmap  = Dict{ConstraintRel,Function}()
 
 typename(x::PyObject) = x.__class__.__name__
 
-function _print_available(s::String, available::Bool, maxlen::Int)
-    io = stdout
-    status = available ? "found" : "not found"
-    color = available ? :green : :red
-    print(io, " ", s)
-    print(io, fill(" ", maxlen - length(s))...)
-    print(io, " => ")
-    printstyled(io, status, color=color)
-    print(io, "\n")
-end
-
 function __init__()
     copy!(smtparser, pyimport("pysmt.smtlib.parser"))
     copy!(pysmt,     pyimport("pysmt.shortcuts"))
@@ -59,29 +49,7 @@ function __init__()
     push!(pysmt_relmap, LEQ => pysmt.LE)
     push!(pysmt_relmap, GT  => pysmt.GT)
     push!(pysmt_relmap, GEQ => pysmt.GE)
-
-    solvers = (eval(k) for k in keys(smt_solvers))
-    len = maximum(length(string(program_name(s))) for s in solvers)
-    for s in solvers
-        _print_available(program_name(s), isavailable(s), len)
-    end
-
-    !any(map(isavailable, solvers)) && @warn("No solver available.")
 end
-
-# ------------------------------------------------------------------------------
-
-const smt_solvers = Dict(
-    :Z3Solver    => "z3",
-    :YicesSolver => "yices-smt2",
-    :CVC4Solver  => "cvc4"
-)
-
-const smt_params = Dict(
-    :Z3Solver    => [],
-    :YicesSolver => [],
-    :CVC4Solver  => ["-m", "--lang=smt"]
-)
 
 # ------------------------------------------------------------------------------
 
@@ -93,7 +61,7 @@ export AlgebraicNumber
 @enum NLStatus sat unsat unknown timeout
 
 abstract type NLSolver end
-abstract type SMTSolver <: NLSolver end
+abstract type AbstractSMTSolver <: NLSolver end
 
 function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
 function solve(s::NLSolver; timeout::Int = -1) end
@@ -125,8 +93,9 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
             return NLSat.sat, elapsed, d
         elseif status == "unsat"
             return NLSat.unsat, elapsed, nothing
+        elseif status == "unknown"
+            return NLSat.unknown, elapsed, nothing
         end
-
         error("Unknown status: $status")
     end
     return NLSat.unknown, elapsed, nothing
@@ -142,7 +111,7 @@ preprocess_smt(x::Expr) = postwalk(x) do y
     end
 end
 
-tosmt(s::SMTSolver, x::Expr) = postwalk(preprocess_smt(x)) do sym
+tosmt(s::AbstractSMTSolver, x::Expr) = postwalk(preprocess_smt(x)) do sym
     if issymbol(sym)
         :(pysmt.Symbol($(string(sym)), $(pysmt_typemap[s.vars[sym]])))
     elseif sym isa Int
@@ -152,38 +121,32 @@ tosmt(s::SMTSolver, x::Expr) = postwalk(preprocess_smt(x)) do sym
     end
 end |> eval
 
-tosmt(s::SMTSolver, c::Constraint{R}) where {R} = pysmt_relmap[R](tosmt(s, c.poly), pysmt.Real(0))
-tosmt(s::SMTSolver, c::Clause) = pysmt.Or([tosmt(s, x) for x in c])
-tosmt(s::SMTSolver, c::ClauseSet) = pysmt.And([tosmt(s, x) for x in c])
+tosmt(s::AbstractSMTSolver, c::Constraint{R}) where {R} = pysmt_relmap[R](tosmt(s, c.poly), pysmt.Real(0))
+tosmt(s::AbstractSMTSolver, c::Clause) = pysmt.Or([tosmt(s, x) for x in c])
+tosmt(s::AbstractSMTSolver, c::ClauseSet) = pysmt.And([tosmt(s, x) for x in c])
 
 # ------------------------------------------------------------------------------
 
-for (name, program) in smt_solvers
-    quote
-        mutable struct $(name) <: SMTSolver
-            vars::Dict{Symbol,Type}
-            cs::ClauseSet
-            
-            function $(name)()
-                @assert isavailable($(name))
-                new(Dict(), ClauseSet())
-            end
-        end
-
-        program_name(::Type{$(name)}) = $(program)
-        program_args(::Type{$(name)}) = $(smt_params[name])
-    end |> eval
+mutable struct SMTSolver{name} <: AbstractSMTSolver
+    vars::Dict{Symbol,Type}
+    cs::ClauseSet
+    
+    function SMTSolver{name}() where {name}
+        @assert exists(SMTSolver{name})
+        new(Dict(), ClauseSet())
+    end
 end
 
+program_name(::Type{SMTSolver{name}}) where {name} = name isa Tuple ? join(name, "") : string(name)
 program_name(::T) where {T<:SMTSolver} = program_name(T)
-program_args(::T) where {T<:SMTSolver} = program_args(T)
-isavailable(s::Type{T}) where {T<:SMTSolver} = !isnothing(Sys.which(program_name(T)))
+exists(::Type{T}) where {T<:SMTSolver} = !isnothing(Sys.which(program_name(T)))
 
 function variables!(s::SMTSolver, d::Dict{Symbol,Type})
     push!(s.vars, d...)
 end
 
 function write_smt(io::IO, s::SMTSolver)
+    write(io, "(set-option:produce-models true)\n")
     write(io, "(set-logic QF_NRA)\n")
     for (k,v) in s.vars
         t = eval(pysmt_typemap[v]).as_smtlib()
@@ -195,11 +158,13 @@ function write_smt(io::IO, s::SMTSolver)
 end
 
 function solve(s::SMTSolver; timeout::Int=-1)
-    mktemp() do path, io
-        write_smt(io, s)
-        close(io)
-
-        openproc(`$(program_name(s)) $(program_args(s)) $path`, timeout=timeout) do _lines
+    path, io = mktemp()
+    write_smt(io, s)
+    close(io)
+    newpath = string(path, ".smt2")
+    mv(path, newpath)
+    try
+        openproc(`$(program_name(s)) $newpath`, timeout=timeout) do _lines
             d = Dict{Symbol,Number}()
             parser = smtparser.SmtLibParser()
             lines = filter!(x->!(occursin("root-obj", x)), _lines)
@@ -227,6 +192,8 @@ function solve(s::SMTSolver; timeout::Int=-1)
             end
             return d
         end
+    finally
+        rm(newpath)
     end
 end
 

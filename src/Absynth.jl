@@ -17,10 +17,13 @@ include("nlsat.jl")
 
 using Absynth.NLSat
 
-const Yices = YicesSolver
-const Z3 = Z3Solver
+export SMTSolver
+export Yices, Z3, CVC4
+export exists, program_name
 
-export YicesSolver, Z3Solver, Yices, Z3
+const Z3 = SMTSolver{:z3}
+const CVC4 = SMTSolver{:cvc4}
+const Yices = SMTSolver{(:yices,:-,:smt2)}
 
 include("utils.jl")
 include("poly.jl")
