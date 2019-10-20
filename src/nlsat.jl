@@ -16,16 +16,16 @@ include("clauseset.jl")
 const NLModel = Dict{Symbol,Number}
 
 # Load Python libraries
-const pyio = PyNULL()
+const pyio      = PyNULL()
 const smtparser = PyNULL()
-const typing = PyNULL()
-const pysmt = PyNULL()
-const z3 = PyNULL()
+const typing    = PyNULL()
+const pysmt     = PyNULL()
 
-z3_typemap = Dict{Type,Function}()
 pysmt_typemap = Dict{Type,Expr}()
-pysmt_opmap = Dict{Symbol,Expr}()
-pysmt_relmap = Dict{ConstraintRel,Function}()
+pysmt_opmap   = Dict{Symbol,Expr}()
+pysmt_relmap  = Dict{ConstraintRel,Function}()
+
+typename(x::PyObject) = x.__class__.__name__
 
 function _print_available(s::String, available::Bool, maxlen::Int)
     io = stdout
@@ -40,15 +40,9 @@ end
 
 function __init__()
     copy!(smtparser, pyimport("pysmt.smtlib.parser"))
-    copy!(pysmt, pyimport("pysmt.shortcuts"))
-    copy!(typing, pyimport("pysmt.typing"))
-    copy!(pyio, pyimport("io"))
-    copy!(z3, pyimport("z3"))
-    push!(z3_typemap, Int             => z3.Int)
-    push!(z3_typemap, Bool            => z3.Bool)
-    push!(z3_typemap, AlgebraicNumber => z3.Real)
-    push!(z3_typemap, Rational        => z3.Real)
-
+    copy!(pysmt,     pyimport("pysmt.shortcuts"))
+    copy!(typing,    pyimport("pysmt.typing"))
+    copy!(pyio,      pyimport("io"))
 
     push!(pysmt_typemap, Int             => :(typing.INT))
     push!(pysmt_typemap, Bool            => :(typing.BOOL))
@@ -116,7 +110,7 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
         end
     end
     elapsed = Millisecond(round((time_ns()-start)/1e6))
-    # Yices returns 0 and Z3 returns 1 on UNSAT
+
     if P.exitcode >= 0
         lines = readlines(P)
         status = popfirst!(lines)
@@ -220,15 +214,13 @@ function solve(s::SMTSolver; timeout::Int=-1)
                     # TODO
                     @warn "TODO: algebraic"
                 else
-                    @warn "Unknown data type of $((var,val))"
+                    @warn "Unhandled data type of $((var,val))"
                 end
             end
             return d
         end
     end
 end
-
-typename(x::PyObject) = x.__class__.__name__
 
 # ------------------------------------------------------------------------------
 
