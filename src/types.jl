@@ -173,7 +173,7 @@ init(s::SynthesisProblem) = s.rt.init
 multiplicities(s::SynthesisProblem) = s.ct.multiplicities
 roots(s::SynthesisProblem) = symroot(length(multiplicities(s)))
 
-function constraints(sp::SynthesisProblem; progress::Bool=false)
+function constraints(sp::SynthesisProblem; progress::Bool=true)
     cscforms = cstr_cforms(sp)
     csinit   = cstr_init(sp)
     csroots  = cstr_roots(sp)
