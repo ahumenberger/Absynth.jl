@@ -9,8 +9,8 @@ _constraintrel_map = Dict(
     NEQ => :(!=),
     LT  => :(<),
     LEQ => :(<=),
-    LT  => :(>),
-    LEQ => :(>=)
+    GT  => :(>),
+    GEQ => :(>=)
 )
 
 struct Constraint{ConstraintRel}

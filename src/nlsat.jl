@@ -18,9 +18,14 @@ const NLModel = Dict{Symbol,Number}
 # Load Python libraries
 const pyio = PyNULL()
 const smtparser = PyNULL()
+const typing = PyNULL()
+const pysmt = PyNULL()
 const z3 = PyNULL()
 
 z3_typemap = Dict{Type,Function}()
+pysmt_typemap = Dict{Type,Expr}()
+pysmt_opmap = Dict{Symbol,Expr}()
+pysmt_relmap = Dict{ConstraintRel,Function}()
 
 function _print_available(s::String, available::Bool, maxlen::Int)
     io = stdout
@@ -35,12 +40,31 @@ end
 
 function __init__()
     copy!(smtparser, pyimport("pysmt.smtlib.parser"))
+    copy!(pysmt, pyimport("pysmt.shortcuts"))
+    copy!(typing, pyimport("pysmt.typing"))
     copy!(pyio, pyimport("io"))
     copy!(z3, pyimport("z3"))
     push!(z3_typemap, Int             => z3.Int)
     push!(z3_typemap, Bool            => z3.Bool)
     push!(z3_typemap, AlgebraicNumber => z3.Real)
     push!(z3_typemap, Rational        => z3.Real)
+
+
+    push!(pysmt_typemap, Int             => :(typing.INT))
+    push!(pysmt_typemap, Bool            => :(typing.BOOL))
+    push!(pysmt_typemap, AlgebraicNumber => :(typing.REAL))
+    push!(pysmt_typemap, Rational        => :(typing.REAL))
+
+    push!(pysmt_opmap, :+ => :(pysmt.Plus))
+    push!(pysmt_opmap, :- => :(pysmt.Minus))
+    push!(pysmt_opmap, :* => :(pysmt.Times))
+
+    push!(pysmt_relmap, EQ  => pysmt.Equals)
+    push!(pysmt_relmap, NEQ => pysmt.NotEquals)
+    push!(pysmt_relmap, LT  => pysmt.LT)
+    push!(pysmt_relmap, LEQ => pysmt.LE)
+    push!(pysmt_relmap, GT  => pysmt.GT)
+    push!(pysmt_relmap, GEQ => pysmt.GE)
 
     solvers = (eval(k) for k in keys(smt_solvers))
     len = maximum(length(string(program_name(s))) for s in solvers)
@@ -55,7 +79,7 @@ end
 
 const smt_solvers = Dict(
     :Z3Solver    => "z3",
-    :YicesSolver => "yices-smt",
+    :YicesSolver => "yices-smt2",
     :CVC4Solver  => "cvc4"
 )
 
@@ -110,16 +134,39 @@ end
 
 # ------------------------------------------------------------------------------
 
+preprocess_smt(x::Expr) = postwalk(x) do y
+    @match y begin
+        b_^e_ => Expr(:call, :*, fill(b, e)...)
+        -b_    => :((-1)*$b)
+        _     => y
+    end
+end
+
+tosmt(s::SMTSolver, x::Expr) = postwalk(preprocess_smt(x)) do sym
+    if issymbol(sym)
+        :(pysmt.Symbol($(string(sym)), $(pysmt_typemap[s.vars[sym]])))
+    elseif sym isa Int
+        :(pysmt.Real($sym))
+    else
+        get(pysmt_opmap, sym, sym)
+    end
+end |> eval
+
+tosmt(s::SMTSolver, c::Constraint{R}) where {R} = pysmt_relmap[R](tosmt(s, c.poly), pysmt.Real(0))
+tosmt(s::SMTSolver, c::Clause) = pysmt.Or([tosmt(s, x) for x in c])
+tosmt(s::SMTSolver, c::ClauseSet) = pysmt.And([tosmt(s, x) for x in c])
+
+# ------------------------------------------------------------------------------
+
 for (name, program) in smt_solvers
     quote
         mutable struct $(name) <: SMTSolver
-            ptr::PyObject
-            vars::Dict{Symbol, PyObject}
+            vars::Dict{Symbol,Type}
             cs::ClauseSet
-            cstr::Vector{PyObject}
+            
             function $(name)()
                 @assert isavailable($(name))
-                new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
+                new(Dict(), ClauseSet())
             end
         end
 
@@ -131,47 +178,23 @@ program_name(::T) where {T<:SMTSolver} = program_name(T)
 isavailable(s::Type{T}) where {T<:SMTSolver} = !isnothing(Sys.which(program_name(T)))
 
 function variables!(s::SMTSolver, d::Dict{Symbol,Type})
-    for (var, type) in d
-        push!(s.vars, var => z3_typemap[type](string(var)))
-        if type == Rational
-            p, q = gensym("p"), gensym("q")
-            push!(s.vars, p => z3.Int(string(p)))
-            push!(s.vars, q => z3.Int(string(q)))
-            constraints!(s, [:($q > 0), :($p/$q == $(var))])
-        end
-    end
-    s.vars
+    push!(s.vars, d...)
 end
 
-replace_pow(x::Expr) = postwalk(x) do y
-    @capture(y, b_^e_) ? Expr(:call, :*, fill(b, e)...) : y
-end
-
-function _set_constraints(s::SMTSolver)
-    ls = Expr[]
-    for (svar, z3var) in s.vars
-        push!(ls, Expr(:(=), svar, z3var))
+function write_smt(io::IO, s::SMTSolver)
+    write(io, "(set-logic QF_NRA)\n")
+    for (k,v) in s.vars
+        t = eval(pysmt_typemap[v]).as_smtlib()
+        write(io, "(declare-fun $k $t)\n")
     end
-    for cl in s.cs
-        clause = if length(cl) == 1
-            :($(convert(Expr, first(cl))))
-        else
-            :(z3.Or($([convert(Expr, c) for c in cl]...)))
-        end
-        clause = replace_pow(clause)
-        expr = Expr(:block, ls..., clause)
-        z3clause = eval(expr)
-        s.ptr.add(z3clause)
-        push!(s.cstr, z3clause)
-    end
+    write(io, "(assert ", pysmt.to_smtlib(tosmt(s, s.cs)), ")\n")
+    write(io, "(check-sat)")
+    write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
 end
 
 function solve(s::SMTSolver; timeout::Int=-1)
     mktemp() do path, io
-        _set_constraints(s)
-        write(io, "(set-logic QF_NRA)")
-        write(io, s.ptr.to_smt2())
-        write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
+        write_smt(io, s)
         close(io)
 
         openproc(`$(program_name(s)) $path`, timeout=timeout) do _lines
@@ -182,7 +205,7 @@ function solve(s::SMTSolver; timeout::Int=-1)
             ls = parser.get_assignment_list(pyio.StringIO(join(lines)))
             for (var,val) in ls
                 cval = val.constant_value()
-                svar = Symbol(string(var))
+                svar = Symbol(var.symbol_name())
                 if val.is_int_constant()
                     push!(d, svar=>convert(Int, cval))
                 elseif val.is_real_constant()
