@@ -55,7 +55,7 @@ end
 
 const smt_solvers = Dict(
     :Z3Solver    => "z3",
-    :YicesSolver => "yices-smt",
+    :YicesSolver => "yices-smt2",
     :CVC4Solver  => "cvc4"
 )
 
@@ -143,11 +143,18 @@ function variables!(s::SMTSolver, d::Dict{Symbol,Type})
     s.vars
 end
 
-replace_pow(x::Expr) = postwalk(x) do y
+preprocess_smt(x) = x
+preprocess_smt(x::Expr) = postwalk(x) do y
     @capture(y, b_^e_) ? Expr(:call, :*, fill(b, e)...) : y
 end
+preprocess_smt(c::Constraint{R}) where {R} = Constraint{R}(preprocess_smt(c.poly))
+preprocess_smt(c::Clause) = Clause([preprocess_smt(x) for x in c])
+preprocess_smt(c::ClauseSet) = ClauseSet([preprocess_smt(x) for x in c])
 
-function _set_constraints(s::SMTSolver)
+preprocess_smt!(s::SMTSolver) = s.cs = preprocess_smt(s.cs)
+preprocess_smt!(s::Z3Solver) = s.cs
+
+function set_constraints(s::SMTSolver)
     ls = Expr[]
     for (svar, z3var) in s.vars
         push!(ls, Expr(:(=), svar, z3var))
@@ -158,7 +165,6 @@ function _set_constraints(s::SMTSolver)
         else
             :(z3.Or($([convert(Expr, c) for c in cl]...)))
         end
-        clause = replace_pow(clause)
         expr = Expr(:block, ls..., clause)
         z3clause = eval(expr)
         s.ptr.add(z3clause)
@@ -166,12 +172,24 @@ function _set_constraints(s::SMTSolver)
     end
 end
 
+function write_smt(io::IO, s::Z3Solver)
+    write(io, s.ptr.to_smt2())
+    # @info "" s.ptr.to_smt2()
+    write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
+end
+
+function write_smt(io::IO, s::SMTSolver)
+    write(io, "(set-option:produce-models true)\n")
+    write(io, "(set-logic QF_NRA)\n")
+    write(io, s.ptr.to_smt2())
+    write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
+end
+
 function solve(s::SMTSolver; timeout::Int=-1)
     mktemp() do path, io
-        _set_constraints(s)
-        write(io, "(set-logic QF_NRA)")
-        write(io, s.ptr.to_smt2())
-        write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
+        preprocess_smt!(s)
+        set_constraints(s)
+        write_smt(io, s)
         close(io)
 
         openproc(`$(program_name(s)) $path`, timeout=timeout) do _lines
