@@ -23,3 +23,5 @@ function symbols(x::Expr)
     end
     unique(ls)
 end
+symbols(x::Symbol) = [x]
+symbols(::Number) = []

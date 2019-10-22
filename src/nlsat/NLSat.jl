@@ -151,7 +151,6 @@ function parse_smtoutput(_lines::Vector{String})
             @warn "Unknown data type of $((var,val))"
         end
     end
-    @info "" d
     return d
 end
 

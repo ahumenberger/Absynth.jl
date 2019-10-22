@@ -9,7 +9,6 @@ using Dates
 using DataFrames: DataFrame, unstack, rename!
 using ProgressMeter
 
-
 const Var = AbstractVariable
 const Poly = AbstractPolynomialLike
 
@@ -20,7 +19,7 @@ using Absynth.NLSat
 const Yices = YicesSolver
 const Z3 = Z3Solver
 
-export YicesSolver, Z3Solver, Yices, Z3
+export YicesSolver, Z3Solver, Yices, Z3, SMTSolver
 
 include("utils.jl")
 include("poly.jl")

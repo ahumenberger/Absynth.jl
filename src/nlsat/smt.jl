@@ -29,6 +29,8 @@ preprocess_smt(x::Expr) = postwalk(x) do y
     end
 end
 
+tosmt(s::SMTSolver, x::Number) = pysmt.Real(float(x))
+tosmt(s::SMTSolver, x::Symbol) = :(pysmt.Symbol($(string(x)), $(pysmt_typemap[s.vars[x]]))) |> eval
 tosmt(s::SMTSolver, x::Expr) = postwalk(preprocess_smt(x)) do sym
     if issymbol(sym)
         :(pysmt.Symbol($(string(sym)), $(pysmt_typemap[s.vars[sym]])))
