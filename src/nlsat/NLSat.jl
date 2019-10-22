@@ -27,7 +27,7 @@ const pysmt     = PyNULL()
 
 pysmt_typemap = Dict{Type,Expr}()
 pysmt_opmap   = Dict{Symbol,Expr}()
-pysmt_relmap  = Dict{ConstraintRel,Function}()
+pysmt_relmap  = Dict{ConstraintRel,Expr}()
 
 z3_typemap    = Dict{Type,Function}()
 yices_typemap = Dict{Type,PyObject}()
@@ -69,12 +69,12 @@ function init_pysmt()
     push!(pysmt_opmap, :- => :(pysmt.Minus))
     push!(pysmt_opmap, :* => :(pysmt.Times))
 
-    push!(pysmt_relmap, EQ  => pysmt.Equals)
-    push!(pysmt_relmap, NEQ => pysmt.NotEquals)
-    push!(pysmt_relmap, LT  => pysmt.LT)
-    push!(pysmt_relmap, LEQ => pysmt.LE)
-    push!(pysmt_relmap, GT  => pysmt.GT)
-    push!(pysmt_relmap, GEQ => pysmt.GE)
+    push!(pysmt_relmap, EQ  => :(pysmt.Equals))
+    push!(pysmt_relmap, NEQ => :(pysmt.NotEquals))
+    push!(pysmt_relmap, LT  => :(pysmt.LT))
+    push!(pysmt_relmap, LEQ => :(pysmt.LE))
+    push!(pysmt_relmap, GT  => :(pysmt.GT))
+    push!(pysmt_relmap, GEQ => :(pysmt.GE))
 end
 
 # ------------------------------------------------------------------------------
@@ -133,7 +133,7 @@ function parse_smtoutput(_lines::Vector{String})
     ls = parser.get_assignment_list(pyio.StringIO(join(lines)))
     for (var,val) in ls
         cval = val.constant_value()
-        svar = Symbol(var.symbol_name())
+        svar = Symbol(var)
         if val.is_int_constant()
             push!(d, svar=>convert(Int, cval))
         elseif val.is_real_constant()

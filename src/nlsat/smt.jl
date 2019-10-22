@@ -21,39 +21,70 @@ end
 
 # ------------------------------------------------------------------------------
 
-preprocess_smt(x::Expr) = postwalk(x) do y
+preprocess_smt(x) = postwalk(x) do y
     @match y begin
         b_^e_ => Expr(:call, :*, fill(b, e)...)
-        -b_    => :((-1)*$b)
+        # -b_    => :((-1)*$b)
         _     => y
     end
 end
 
-tosmt(s::SMTSolver, x::Number) = pysmt.Real(float(x))
-tosmt(s::SMTSolver, x::Symbol) = :(pysmt.Symbol($(string(x)), $(pysmt_typemap[s.vars[x]]))) |> eval
-tosmt(s::SMTSolver, x::Expr) = postwalk(preprocess_smt(x)) do sym
-    if issymbol(sym)
-        :(pysmt.Symbol($(string(sym)), $(pysmt_typemap[s.vars[sym]])))
-    elseif sym isa Number
-        :(pysmt.Real(float($sym)))
-    else
-        get(pysmt_opmap, sym, sym)
+function tosmt(s::SMTSolver, x)
+    expr = postwalk(preprocess_smt(x)) do sym
+        if sym isa Number
+            :(pysmt.Real(float($sym)))
+        else
+            get(pysmt_opmap, sym, sym)
+        end
     end
-end |> eval
+end
 
-tosmt(s::SMTSolver, c::Constraint{R}) where {R} = pysmt_relmap[R](tosmt(s, c.poly), pysmt.Real(0))
-tosmt(s::SMTSolver, c::Clause) = pysmt.Or([tosmt(s, x) for x in c])
-tosmt(s::SMTSolver, c::ClauseSet) = pysmt.And([tosmt(s, x) for x in c])
+tosmt(s::SMTSolver, c::Constraint{R}) where {R} = Expr(:call, pysmt_relmap[R], tosmt(s, c.poly), :(pysmt.Real(0)))
+tosmt(s::SMTSolver, c::Clause) = Expr(:call, :(pysmt.Or), [tosmt(s, x) for x in c]...)
+tosmt(s::SMTSolver, c::ClauseSet) = Expr(:call, :(pysmt.And), [tosmt(s, x) for x in c]...)
 
-function write_smt(io::IO, s::SMTSolver)
+function write_smt2(io::IO, s::SMTSolver)
+    ls = Expr[]
+    for (var, type) in s.vars
+        push!(ls, Expr(:(=), var, pysmt.Symbol(string(var), eval(pysmt_typemap[type]))))
+    end
+    expr = Expr(:block, ls..., tosmt(s, s.cs))
+    pyexpr = eval(expr)
+
     write(io, "(set-option:produce-models true)\n")
     write(io, "(set-logic QF_NRA)\n")
     for (k,v) in s.vars
         t = eval(pysmt_typemap[v]).as_smtlib()
         write(io, "(declare-fun $k $t)\n")
     end
-    write(io, "(assert ", pysmt.to_smtlib(tosmt(s, s.cs)), ")\n")
+    write(io, "(assert ", pysmt.to_smtlib(pyexpr), ")\n")
     write(io, "(check-sat)")
+    write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
+end
+
+function to_smtlib(s::SMTSolver)
+    ptr = z3.SolverFor("QF_NRA")
+    ls = Expr[]
+    for (var, type) in s.vars
+        push!(ls, Expr(:(=), var, z3_typemap[type](string(var))))
+    end
+    for cl in s.cs
+        clause = if length(cl) == 1
+            :($(preprocess_smt(convert(Expr, first(cl)))))
+        else
+            :(z3.Or($([preprocess_smt(convert(Expr, c)) for c in cl]...)))
+        end
+        expr = Expr(:block, ls..., clause)
+        z3clause = eval(expr)
+        ptr.add(z3clause)
+    end
+    ptr.to_smt2()
+end
+
+function write_smt(io::IO, s::SMTSolver)
+    write(io, "(set-option:produce-models true)\n")
+    write(io, "(set-logic QF_NRA)\n")
+    write(io, to_smtlib(s))
     write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
 end
 
