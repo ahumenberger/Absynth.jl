@@ -10,7 +10,7 @@ using Distributed
 using MacroTools: walk, postwalk, @capture, @match, replace
 using Dates
 
-include("utils.jl")
+include("../utils.jl")
 include("clauseset.jl")
 
 const NLModel = Dict{Symbol,Number}

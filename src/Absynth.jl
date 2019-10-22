@@ -13,7 +13,7 @@ using ProgressMeter
 const Var = AbstractVariable
 const Poly = AbstractPolynomialLike
 
-include("nlsat.jl")
+include("nlsat/NLSat.jl")
 
 using Absynth.NLSat
 
