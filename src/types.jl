@@ -8,7 +8,11 @@ _UnitUpperTriangular(s::Int) = [j>i ? mkpoly(mkvar("b$i$j")) : i==j ? mkpoly(1) 
 _Companion(s::Int)           = [i==s ? mkpoly(mkvar("b$i$j")) : i+1==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
 _UserSpecific(s::Int)        = error("Should not be called")
 
-_add_const_one(M::Matrix) = _add_row_one(hcat(M, zeros(eltype(M), size(M, 1), 1)))
+function _add_const_one(M::Matrix)
+    s = size(M, 1) + 1
+    col = [mkpoly(mkvar("b$i$s")) for i in 1:s-1]
+    _add_row_one(hcat(M, col))
+end
 
 function _add_row_one(M::Matrix)
     T = eltype(M)
@@ -186,7 +190,7 @@ function constraints(sp::SynthesisProblem; progress::Bool=true)
     pcp
 end
 
-function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool=false)
+function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool=true)
     pcp = constraints(sp; progress=progress)
     vars = NLSat.variables(pcp)
     varmap = convert(Dict{Symbol,Type}, Dict(v=>AlgebraicNumber for v in vars))
@@ -214,7 +218,7 @@ function solve(sp::SynthesisProblem, solver::S; timeout::Int) where {S<:NLSolver
     nothing, SynthesisResult(status, nothing, elapsed, sp)
 end
 
-function solve(sp::SynthesisProblem; solver::Type{<:NLSolver}=Z3Solver, progress::Bool=false, timeout::Int=10)
+function solve(sp::SynthesisProblem; solver::Type{<:NLSolver}=Z3Solver, progress::Bool=true, timeout::Int=10)
     _solver = create_solver(sp, solver; progress=progress)
     last(solve(sp, _solver, timeout=timeout))
 end
