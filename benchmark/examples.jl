@@ -109,9 +109,6 @@ example!(Example((
     Dict(:params=>[:a])
 )))
 
-# @example intsqrt2 (a00 + r == r^2 + 2y)
-# @varorder intsqrt2 y r a
-
 # Integer Cubic Root
 # x, r, s = a, 1, 13/4
 # while true
@@ -208,7 +205,8 @@ function Base.run(examples::Vector{Example}; solvers=[Yices,Z3], timeout=2, maxs
             for solver in solvers
                 sols = solutions(strat; solver=solver, timeout=timeout, maxsol=maxsol)
                 for res in sols
-                    push!(df, (solver, ex.name, shape, res.status, res.status == NLSat.timeout ? "-" : res.elapsed, res.recsystem))
+                    push!(df, (solver, ex.name, shape, res.status, res.elapsed, res.recsystem))
+                    # push!(df, (solver, ex.name, shape, res.status, res.status == NLSat.timeout ? "-" : res.elapsed, res.recsystem))
                     next!(progress)
                 end
             end

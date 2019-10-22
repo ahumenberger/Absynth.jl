@@ -26,7 +26,6 @@ include("poly.jl")
 include("invariant.jl")
 include("cfinite.jl")
 include("show.jl")
-include("examples.jl")
 include("types.jl")
 include("iterators.jl")
 
@@ -35,5 +34,7 @@ export Invariant, @invariant
 export strategy_all, strategy_permutations, strategy_partitions, strategy_fixed
 export solutions, models
 export loop
+
+include("../benchmark/examples.jl")
 
 end # module
