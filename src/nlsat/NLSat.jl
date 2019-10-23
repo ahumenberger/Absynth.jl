@@ -153,7 +153,8 @@ function parse_smtoutput(_lines::Vector{String})
             if typename(cval) == "mpq"
                 num = parse(Int, cval.numerator.digits()) 
                 den = parse(Int, cval.denominator.digits())
-                push!(d, svar=>Rational(num,den))
+                rat = Rational(num, den)
+                push!(d, svar=>isinteger(rat) ? convert(Int, rat) : rat)
             else
                 push!(d, svar=>convert(Float64, cval))
             end
