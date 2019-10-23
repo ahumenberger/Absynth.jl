@@ -70,8 +70,10 @@ end
 function loop(l::RecSystem)
     body, vars = sequentialize(l.body, map(mkvar, l.vars))
     lhss = (Meta.parse ∘ string).(body * vars)
-    init = [:($rhs = $lhs) for (rhs,lhs) in zip(l.vars, l.init*map(mkpoly, l.params))]
-    assign = [:($rhs = $lhs) for (rhs,lhs) in zip(vars, lhss)]
+    lhss = [replace(x, CONST_ONE_SYM, one(Int)) for x in lhss]
+    rhss = [replace(x, CONST_ONE_SYM, one(Int)) for x in l.vars]
+    init = [:($rhs = $lhs) for (rhs,lhs) in zip(rhss, l.init*map(mkpoly, l.params)) if rhs != one(Int)]
+    assign = [:($rhs = $lhs) for (rhs,lhs) in zip(rhss, lhss) if rhs != lhs]
     striplines(quote
         $(init...)
         while true
@@ -159,7 +161,7 @@ struct SynthesisProblem
     ct::ClosedFormTemplate
 
     function SynthesisProblem(inv::Invariant, rt::RecurrenceTemplate, ct::ClosedFormTemplate)
-        @assert issubset(program_variables(inv), rt.vars)
+        @assert issubset(program_variables(inv), rt.vars) "$(program_variables(inv)) is not a subset of $(rt.vars)"
         @assert rt.vars == ct.vars && rt.params == ct.params
         new(inv, rt, ct)
     end

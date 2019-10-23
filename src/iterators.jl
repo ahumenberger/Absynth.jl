@@ -86,7 +86,7 @@ function synth(inv::Invariant; timeout=2, solver=Z3, kwargs...)
     for s in solutions(strategy; maxsol=1, timeout=timeout, solver=solver)
         if issat(s)
             finish!(progress)
-            return s
+            return s.recsystem
         end
         next!(progress)
     end
