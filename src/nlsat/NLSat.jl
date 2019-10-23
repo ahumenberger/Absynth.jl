@@ -38,7 +38,6 @@ function __init__()
     copy!(typing,    pyimport("pysmt.typing"))
     copy!(pyio,      pyimport("io"))
     copy!(z3,        pyimport("z3"))
-    copy!(yices,     pyimport("yices"))
 
     init_z3()
     init_yices()
@@ -53,10 +52,22 @@ function init_z3()
 end
 
 function init_yices()
-    push!(yices_typemap, Int              => yices.Types.int_type())
-    push!(yices_typemap, Bool             => yices.Types.bool_type())
-    push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
-    push!(yices_typemap, Rational         => yices.Types.real_type())
+    !ispynull(yices) && return
+    try
+        out, err = Pipe(), Pipe()
+        cmd = `$(PyCall.pyprogramname) -m pip install -- yices`
+        run(pipeline(ignorestatus(cmd), stdout=out, stderr=err))
+        close(out.in)
+        close(err.in)
+        @debug "Installing Python interface of Yices" String(read(out)) String(read(err))
+        copy!(yices, pyimport("yices"))
+        push!(yices_typemap, Int              => yices.Types.int_type())
+        push!(yices_typemap, Bool             => yices.Types.bool_type())
+        push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
+        push!(yices_typemap, Rational         => yices.Types.real_type())
+    catch
+        @debug "Could not load yices"
+    end
 end
 
 function init_pysmt()
@@ -118,6 +129,8 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
             return NLSat.sat, elapsed, d
         elseif status == "unsat"
             return NLSat.unsat, elapsed, nothing
+        elseif status == "unknown"
+            return NLSat.unknown, elapsed, nothing
         end
 
         error("Unknown status: $status")
