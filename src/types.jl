@@ -93,7 +93,7 @@ struct RecurrenceTemplate
     shape::MatrixShape
 end
 
-function RecurrenceTemplate(vars::Vector{Symbol}, shape::MatrixShape; constone::Bool=false, params::Vector{Symbol}=Symbol[])
+function RecurrenceTemplate(vars::Vector{Symbol}, shape::MatrixShape; constone::Bool=true, params::Vector{Symbol}=Symbol[])
     size = length(vars)
     params = SymOrNum[params; 1]
 
