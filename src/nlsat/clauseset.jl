@@ -14,10 +14,10 @@ _constraintrel_map = Dict(
 )
 
 struct Constraint{ConstraintRel}
-    poly::Union{Expr,Symbol}
+    poly::Union{Expr,Symbol,Number}
 
     function Constraint{ConstraintRel}(x) where {ConstraintRel}
-        (x isa Expr || x isa Symbol) && return new{ConstraintRel}(x)
+        (x isa Expr || x isa Symbol || x isa Number) && return new{ConstraintRel}(x)
         new{ConstraintRel}(Meta.parse(string(x)))
     end
 end
