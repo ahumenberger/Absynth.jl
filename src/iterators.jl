@@ -35,6 +35,13 @@ function strategy_fixed(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape
     synthesis_problems(inv, [rec], [roots]; kwargs...)
 end
 
+strategy_mixed(inv::Invariant, vars::Vector{Symbol}; kwargs...) =
+    Iterators.flatten([
+        strategy_all(inv, vars, UnitUpperTriangular; kwargs...),
+        strategy_all(inv, vars, UpperTriangular; kwargs...),
+        strategy_partitions(inv, vars, FullSymbolic; kwargs...)
+    ])
+
 # ------------------------------------------------------------------------------
 
 struct Solutions
@@ -72,3 +79,16 @@ solutions(strategy; kwargs...) =
 
 models(strategy; kwargs...) =
     Iterators.filter(Absynth.issat, solutions(strategy; kwargs...))
+
+function synth(inv::Invariant; timeout=2, solver=Z3, kwargs...)
+    progress = ProgressUnknown("I'm trying hard:")
+    strategy = strategy_mixed(inv, program_variables(inv); kwargs...)
+    for s in solutions(strategy; maxsol=1, timeout=timeout, solver=solver)
+        if issat(s)
+            finish!(progress)
+            return s
+        end
+        next!(progress)
+    end
+    finish!(progress)
+end

@@ -32,7 +32,7 @@ include("iterators.jl")
 export FullSymbolic, UpperTriangular, UnitUpperTriangular, Companion, UserSpecific
 export Invariant, @invariant
 export strategy_all, strategy_permutations, strategy_partitions, strategy_fixed
-export solutions, models
+export solutions, models, synth
 export loop
 
 include("../benchmark/examples.jl")
