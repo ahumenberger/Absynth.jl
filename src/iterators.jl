@@ -5,7 +5,7 @@ closedform_systems(rt::RecurrenceTemplate, iter) =
 
 # TODO: How to deal with templates where a permutation is useless?
 recurrence_systems(vars::Vector{Symbol}, shape::MatrixShape, iter=permutations(vars); kwargs...) =
-    (RecurrenceTemplate(perm, shape; kwargs...) for perm in (isnothing(iter) ? permutations(vars) : iter))
+    (RecurrenceTemplate(copy(perm), shape; kwargs...) for perm in (isnothing(iter) ? permutations(vars) : iter))
 
 synthesis_problems(inv::Invariant, recsys_iter, part_iter; kwargs...) = 
     (SynthesisProblem(inv, r, c) for r in recsys_iter for c in closedform_systems(r, part_iter))
@@ -26,7 +26,7 @@ function strategy_permutations(inv::Invariant, vars::Vector{Symbol}, shape::Matr
 end
 
 function strategy_partitions(inv::Invariant, vars::Vector{Symbol}, shape::MatrixShape; kwargs...)
-    rec = RecurrenceTemplate(vars, shape; kwargs...)
+    rec = RecurrenceTemplate(copy(vars), shape; kwargs...)
     synthesis_problems(inv, [rec], nothing; kwargs...)
 end
 
