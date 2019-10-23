@@ -118,6 +118,8 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
             return NLSat.sat, elapsed, d
         elseif status == "unsat"
             return NLSat.unsat, elapsed, nothing
+        elseif status == "unknown"
+            return NLSat.unknown, elapsed, nothing
         end
 
         error("Unknown status: $status")
