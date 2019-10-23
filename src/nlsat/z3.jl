@@ -3,7 +3,11 @@ mutable struct Z3Solver <: NLSolver
     vars::Dict{Symbol, PyObject}
     cs::ClauseSet
     cstr::Vector{PyObject}
-    Z3Solver() = new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
+    function Z3Solver()
+        @assert !isnothing(Sys.which("z3")) "Could not find Z3"
+        @assert !ispynull(z3) "Could not load Python interface of Z3"
+        new(z3.SolverFor("QF_NRA"), Dict(), ClauseSet(), [])
+    end
 end
 
 function variables!(s::Z3Solver, d::Dict{Symbol,Type})

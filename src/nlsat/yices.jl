@@ -22,7 +22,12 @@ mutable struct YicesSolver <: NLSolver
     pyvars::Dict{Symbol, PyObject}
     cstr::Vector{PyObject}
     input::Vector{String}
-    YicesSolver() = new(Dict(), ClauseSet(), Dict(), [], [])
+    function YicesSolver()
+        @assert !isnothing(Sys.which("yices")) "Could not find Yices"
+        init_yices()
+        @assert !ispynull(yices) "Could not install Python interface of Yices"
+        new(Dict(), ClauseSet(), Dict(), [], [])
+    end
 end
 
 function variables!(s::YicesSolver, d::Dict{Symbol,Type})
