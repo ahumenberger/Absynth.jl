@@ -67,3 +67,5 @@ end
 
 constraint_walk(f, i::Invariant) = constraint_walk(f, i.x)
 function_walk(f, i::Invariant) = function_walk(f, i.x)
+
+Base.show(io::IO, i::Invariant) = print(io, string(i.x))
