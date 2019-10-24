@@ -1,5 +1,5 @@
 # Absynth.jl
-> Algebra-based synthesizer
+> **A**lgebra-**b**ased loop **synth**esizer
 
 Absynth is a Julia package for synthesizing loops from a given polynomial loop invariant.
 
