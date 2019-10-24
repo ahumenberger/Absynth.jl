@@ -10,7 +10,7 @@ julia> ] add https://github.com/ahumenberger/Absynth.jl
 julia> using Absynth
 ```
 
-Absynth makes use of SMT solving at its core. As such you should have an SMT solver like Z3 [1] or Yices [2] installed.
+Absynth makes use of SMT solving at its core. As such you should have an SMT solver like [Z3](https://github.com/Z3Prover/z3) or [Yices](http://yices.csl.sri.com/) installed.
 
 You can check if Absynth can find Z3 or Yices by trying to call the constructor of the solver, that is, `Z3()` or `Yices()`. If this does not throw an error, then Z3 and/or Yices are available.
 
@@ -43,7 +43,3 @@ quote
     end
 end
 ```
-
-
-[1] https://github.com/Z3Prover/z3
-[2] http://yices.csl.sri.com/
