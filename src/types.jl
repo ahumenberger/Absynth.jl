@@ -50,6 +50,8 @@ struct RecSystem
     body::Matrix{<:Number}
 end
 
+size(s::RecSystem) = length(s.vars)
+
 value(l::RecSystem, k::Int) = l.body^k * l.init
 value(l::RecSystem, r::UnitRange{Int}) = [value(l, k) for k in r]
 
@@ -319,12 +321,12 @@ issat(s::SynthesisResult) = s.status == NLSat.sat
 
 # ------------------------------------------------------------------------------
 
-function Base.summary(io::IO, rt::RecurrenceTemplate)
+function Base.summary(io::IO, r::Union{RecurrenceTemplate,RecSystem})
     compact = get(io, :compact, false)
     if compact
-        print(io, "RecurrenceTemplate ($(size(rt.body, 1)))")
+        print(io, "$(typeof(r)) ($(size(r)))")
     else
-        print(io, "RecurrenceTemplate of size $(size(rt.body, 1))")
+        print(io, "$(typeof(r)) of size $(size(r))")
     end
 end
 
