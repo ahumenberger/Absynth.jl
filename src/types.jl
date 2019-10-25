@@ -50,7 +50,7 @@ struct RecSystem
     body::Matrix{<:Number}
 end
 
-size(s::RecSystem) = length(s.vars)
+Base.size(s::RecSystem) = length(s.vars)
 
 value(l::RecSystem, k::Int) = l.body^k * l.init
 value(l::RecSystem, r::UnitRange{Int}) = [value(l, k) for k in r]
