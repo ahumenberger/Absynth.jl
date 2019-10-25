@@ -40,6 +40,13 @@ example!(Example((
     Dict()
 )))
 
+example!(Example((
+    :dblsquare,
+    @invariant(a == 2*b^2),
+    [:a, :b],
+    Dict()
+)))
+
 # Sum1
 # a, b, c = 0, 0, 1
 # while true
