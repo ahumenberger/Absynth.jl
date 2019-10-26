@@ -58,6 +58,8 @@ Base.convert(::Type{Expr}, c::Constraint{LT}) = :($(c.poly) < 0)
 Base.convert(::Type{Expr}, c::Constraint{LEQ}) = :($(c.poly) <= 0)
 Base.convert(::Type{Expr}, c::Constraint{GT}) = :($(c.poly) > 0)
 Base.convert(::Type{Expr}, c::Constraint{GEQ}) = :($(c.poly) >= 0)
+Base.convert(::Type{Expr}, c::Clause) = :(|($(map(x->convert(Expr, x), c))))
+Base.convert(::Type{Expr}, c::ClauseSet) = :(&($(map(x->convert(Expr, x), c))))
 
 Base.promote_rule(::Type{Clause}, ::Type{Constraint{R}}) where {R} = Clause
 Base.promote_rule(::Type{Constraint{R}}, ::Type{Clause}) where {R} = Clause
