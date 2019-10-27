@@ -24,7 +24,6 @@ function variables!(s::Z3Solver, d::Dict{Symbol,Type})
 end
 
 function set_constraints(s::Z3Solver)
-    @info "" convert(Expr, s.cs)
     ls = Expr[]
     for (svar, z3var) in s.vars
         push!(ls, Expr(:(=), svar, z3var))

@@ -21,14 +21,6 @@ end
 
 # ------------------------------------------------------------------------------
 
-preprocess_smt(x) = postwalk(x) do y
-    @match y begin
-        b_^e_ => Expr(:call, :*, fill(b, e)...)
-        # -b_    => :((-1)*$b)
-        _     => y
-    end
-end
-
 function tosmt(s::SMTSolver, x)
     expr = postwalk(preprocess_smt(x)) do sym
         if sym isa Number
@@ -81,10 +73,22 @@ function to_smtlib(s::SMTSolver)
     ptr.to_smt2()
 end
 
+function write_vars(io::IO, s::SMTSolver)
+    for (v,t) in s.vars
+        write(io, "(declare-const $v Real)\n")
+    end
+end
+
+function write_constraints(io, s::SMTSolver)
+    write(io, smt(s.cs; expand_pow=true))
+end
+
 function write_smt(io::IO, s::SMTSolver)
     write(io, "(set-option:produce-models true)\n")
     write(io, "(set-logic QF_NRA)\n")
-    write(io, to_smtlib(s))
+    write_vars(io, s)
+    write_constraints(io, s)
+    write(io, "(check-sat)")
     write(io, "(get-value ($(join(keys(s.vars), " "))))\n")
 end
 
@@ -97,6 +101,7 @@ function solve(s::SMTSolver; timeout::Int=-1)
     try
         openproc(parse_smtoutput, `$(program_name(s)) $newpath`, timeout=timeout)
     finally
+        # @info "" newpath
         rm(newpath)
     end
 end

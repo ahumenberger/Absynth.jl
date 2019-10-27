@@ -12,6 +12,7 @@ using Dates
 
 include("../utils.jl")
 include("clauseset.jl")
+include("lisp.jl")
 
 const NLModel = Dict{Symbol,Number}
 
