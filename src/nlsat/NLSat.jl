@@ -12,7 +12,7 @@ using Dates
 
 include("../utils.jl")
 include("clauseset.jl")
-include("lisp.jl")
+include("smtlib.jl")
 
 const NLModel = Dict{Symbol,Number}
 
@@ -139,7 +139,7 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
     return NLSat.unknown, elapsed, nothing
 end
 
-function parse_smtoutput(_lines::Vector{String})
+function parse_output_smt(_lines::Vector{String})
     d = NLModel()
     parser = smtparser.SmtLibParser()
     lines = filter!(x->!(occursin("root-obj", x)), _lines)
@@ -169,11 +169,35 @@ function parse_smtoutput(_lines::Vector{String})
     return d
 end
 
+function parse_output_yices(lines::Vector{String})
+    d = NLModel()
+    for l in lines
+        ll = l[4:end-1]
+        (x,y) = split(ll, limit=2)
+        sym = Symbol(x)
+        val = parsenumber(y)
+        push!(d, sym=>val)
+    end
+    return d
+end
+
+function parsenumber(s::AbstractString)
+    ls = split(string(s), '/', keepempty=false)
+    if length(ls) == 1
+        x = parse(Float64, ls[1])
+        isinteger(x) && return convert(Int, x)
+        return rationalize(x)
+    else
+        @assert length(ls) == 2
+        return parse(Int, ls[1]) // parse(Int, ls[2])
+    end
+end
+
 # ------------------------------------------------------------------------------
 
 # include("mathematica.jl")
 include("smt.jl")
-include("z3.jl")
-include("yices.jl")
+# include("z3.jl")
+# include("yices.jl")
 
 end # module

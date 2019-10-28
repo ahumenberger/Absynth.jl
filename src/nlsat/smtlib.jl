@@ -11,17 +11,14 @@ op_map = Dict(
     :(|)  => :smt_or
 )
 
-lookup!(d, x::Number) = x < 0 ? "(- $(abs(x)))" : string(x)
+lookup!(d, x::Number) = x < 0 ? "(- $(float(abs(x))))" : string(float(x))
+lookup!(d, x::Symbol) = get(op_map, x, string(x))
 
-function lookup!(d, x::Symbol)
-    get(op_map, x, string(x))
-end
-
-function lookup!(dict, x::Expr)
+function lookup!(d, x::Expr)
     x.head != :call && return x
-    haskey(dict, x) && return string(dict[x])
+    haskey(d, x) && return string(d[x])
     s = gensym_unhashed(:t)
-    push!(dict, x=>s)
+    push!(d, x=>s)
     string(s)
 end
 
@@ -56,7 +53,7 @@ smt_and(x...)    = "(and $(join(x, " ")))"
 smt_or(x...)     = "(or $(join(x, " ")))"
 smt_eq(x, y)     = "(= $x $y)"
 smt_neq(x, y)    = "(distinct $x $y)"
-smt_pow(x, y)    = "(pow $x $y)"
+smt_pow(x, y)    = "(^ $x $y)"
 smt_minus(x, y)  = "(- $x $y)"
 smt_minus(x)     = "(- $x)"
 smt_assign(x, y) = "(($x $y))"
