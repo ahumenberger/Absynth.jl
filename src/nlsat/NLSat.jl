@@ -13,6 +13,7 @@ using Dates
 include("../utils.jl")
 include("clauseset.jl")
 include("smtlib.jl")
+include("lisp.jl")
 
 const NLModel = Dict{Symbol,Number}
 
@@ -139,59 +140,35 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
     return NLSat.unknown, elapsed, nothing
 end
 
-function parse_output_smt(_lines::Vector{String})
-    d = NLModel()
-    parser = smtparser.SmtLibParser()
-    lines = filter!(x->!(occursin("root-obj", x)), _lines)
-    _lines != lines && @warn "Sorry, I cannot parse algebraic numbers yet! Filtered root-obj."
-    ls = parser.get_assignment_list(pyio.StringIO(join(lines)))
-    for (var,val) in ls
-        cval = val.constant_value()
-        svar = Symbol(var)
-        if val.is_int_constant()
-            push!(d, svar=>convert(Int, cval))
-        elseif val.is_real_constant()
-            if typename(cval) == "mpq"
-                num = parse(Int, cval.numerator.digits()) 
-                den = parse(Int, cval.denominator.digits())
-                rat = Rational(num, den)
-                push!(d, svar=>isinteger(rat) ? convert(Int, rat) : rat)
-            else
-                push!(d, svar=>convert(Float64, cval))
-            end
-        elseif val.is_algebraic_constant()
-            # TODO
-            @warn "TODO: algebraic"
-        else
-            @warn "Unknown data type of $((var,val))"
-        end
+function parse_output_smt(s::Array{String})
+    m = NLModel()
+    sexpr = parse_sexpr(join(s))
+    for x in sexpr.vec
+        @assert length(x.vec) == 2
+        sym = x.vec[1]
+        val = try_int(eval(to_expr(x.vec[2])))
+        push!(m, sym=>val)
     end
-    return d
+    m
 end
 
-function parse_output_yices(lines::Vector{String})
-    d = NLModel()
-    for l in lines
-        ll = l[4:end-1]
-        (x,y) = split(ll, limit=2)
-        sym = Symbol(x)
-        val = parsenumber(y)
-        push!(d, sym=>val)
+function parse_output_yices(s::Array{String})
+    m = NLModel()
+    sexpr = parse_sexpr(string("(", join(s), ")"))
+    for x in sexpr.vec
+        @assert length(x.vec) == 3 && x.vec[1] == :(=) "$x"
+        sym = x.vec[2]
+        val = try_int(eval(to_expr(x.vec[3])))
+        push!(m, sym=>val)
     end
-    return d
+    m
 end
 
-function parsenumber(s::AbstractString)
-    ls = split(string(s), '/', keepempty=false)
-    if length(ls) == 1
-        x = parse(Float64, ls[1])
-        isinteger(x) && return convert(Int, x)
-        return rationalize(x)
-    else
-        @assert length(ls) == 2
-        return parse(Int, ls[1]) // parse(Int, ls[2])
-    end
-end
+to_expr(x) = x isa SExpr ? Expr(:call, map(to_expr, x.vec)...) : x
+
+try_int(x) = isinteger(x) ? convert(Int, x) : rationalize(x)
+
+Base.rationalize(x::Rational) = x
 
 # ------------------------------------------------------------------------------
 
