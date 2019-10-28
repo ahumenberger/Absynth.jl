@@ -4,7 +4,6 @@ export NLSolver, Z3Solver, YicesSolver, SMTSolver
 export NLStatus, NLModel
 export variables!, constraints!, solve
 
-using PyCall
 using DelimitedFiles
 using Distributed
 using MacroTools: walk, postwalk, @capture, @match, replace
@@ -16,79 +15,6 @@ include("smtlib.jl")
 include("lisp.jl")
 
 const NLModel = Dict{Symbol,Number}
-
-typename(x::PyObject) = x.__class__.__name__
-
-# Load Python libraries
-const z3        = PyNULL()
-const yices     = PyNULL()
-const pyio      = PyNULL()
-const smtparser = PyNULL()
-const typing    = PyNULL()
-const pysmt     = PyNULL()
-
-pysmt_typemap = Dict{Type,Expr}()
-pysmt_opmap   = Dict{Symbol,Expr}()
-pysmt_relmap  = Dict{ConstraintRel,Expr}()
-
-z3_typemap    = Dict{Type,Function}()
-yices_typemap = Dict{Type,PyObject}()
-
-function __init__()
-    copy!(smtparser, pyimport("pysmt.smtlib.parser"))
-    copy!(pysmt,     pyimport("pysmt.shortcuts"))
-    copy!(typing,    pyimport("pysmt.typing"))
-    copy!(pyio,      pyimport("io"))
-    copy!(z3,        pyimport("z3"))
-
-    init_z3()
-    init_yices()
-    init_pysmt()
-end
-
-function init_z3()
-    push!(z3_typemap, Int             => z3.Int)
-    push!(z3_typemap, Bool            => z3.Bool)
-    push!(z3_typemap, AlgebraicNumber => z3.Real)
-    push!(z3_typemap, Rational        => z3.Real)
-end
-
-function init_yices()
-    !ispynull(yices) && return
-    try
-        out, err = Pipe(), Pipe()
-        cmd = `$(PyCall.pyprogramname) -m pip install -- yices`
-        run(pipeline(ignorestatus(cmd), stdout=out, stderr=err))
-        close(out.in)
-        close(err.in)
-        @debug "Installing Python interface of Yices" String(read(out)) String(read(err))
-        copy!(yices, pyimport("yices"))
-        push!(yices_typemap, Int              => yices.Types.int_type())
-        push!(yices_typemap, Bool             => yices.Types.bool_type())
-        push!(yices_typemap, AlgebraicNumber  => yices.Types.real_type())
-        push!(yices_typemap, Rational         => yices.Types.real_type())
-    catch
-        @debug "Could not load yices"
-    end
-end
-
-function init_pysmt()
-    push!(pysmt_typemap, Int             => :(typing.INT))
-    push!(pysmt_typemap, Bool            => :(typing.BOOL))
-    push!(pysmt_typemap, AlgebraicNumber => :(typing.REAL))
-    push!(pysmt_typemap, Rational        => :(typing.REAL))
-
-    push!(pysmt_opmap, :+ => :(pysmt.Plus))
-    push!(pysmt_opmap, :- => :(pysmt.Minus))
-    push!(pysmt_opmap, :* => :(pysmt.Times))
-
-    push!(pysmt_relmap, EQ  => :(pysmt.Equals))
-    push!(pysmt_relmap, NEQ => :(pysmt.NotEquals))
-    push!(pysmt_relmap, LT  => :(pysmt.LT))
-    push!(pysmt_relmap, LEQ => :(pysmt.LE))
-    push!(pysmt_relmap, GT  => :(pysmt.GT))
-    push!(pysmt_relmap, GEQ => :(pysmt.GE))
-end
 
 # ------------------------------------------------------------------------------
 
@@ -174,7 +100,5 @@ Base.rationalize(x::Rational) = x
 
 # include("mathematica.jl")
 include("smt.jl")
-# include("z3.jl")
-# include("yices.jl")
 
 end # module
