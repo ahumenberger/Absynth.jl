@@ -9,11 +9,6 @@ using Distributed
 using MacroTools: walk, postwalk, @capture, @match, replace
 using Dates
 
-include("../utils.jl")
-include("clauseset.jl")
-include("smtlib.jl")
-include("lisp.jl")
-
 const NLModel = Dict{Symbol,Number}
 
 # ------------------------------------------------------------------------------
@@ -28,6 +23,13 @@ end
 
 # ------------------------------------------------------------------------------
 
+include("../utils.jl")
+include("clauseset.jl")
+include("smtlib.jl")
+include("lisp.jl")
+
+# ------------------------------------------------------------------------------
+
 @enum NLStatus sat unsat unknown timeout
 
 abstract type NLSolver end
@@ -39,6 +41,6 @@ constraints!(s::NLSolver, cs::ClauseSet) = s.cs &= cs
 # ------------------------------------------------------------------------------
 
 # include("mathematica.jl")
-include("smt.jl")
+include("smtsolver.jl")
 
 end # module
