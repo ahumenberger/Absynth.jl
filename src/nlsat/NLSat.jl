@@ -21,6 +21,11 @@ const NLModel = Dict{Symbol,Number}
 abstract type AlgebraicNumber end
 export AlgebraicNumber
 
+function AlgebraicNumber(x::Expr, n::Int)
+    @warn "Algebraic numbers not yet supported, got $((x, n)), returning $(NaN)"
+    NaN
+end
+
 # ------------------------------------------------------------------------------
 
 @enum NLStatus sat unsat unknown timeout

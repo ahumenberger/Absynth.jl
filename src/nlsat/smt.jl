@@ -145,8 +145,6 @@ function parse_output_yices(s::Array{String})
     m
 end
 
-to_expr(x) = x isa SExpr ? Expr(:call, map(to_expr, x.vec)...) : x
-
-try_int(x) = isinteger(x) ? convert(Int, x) : rationalize(x)
+try_int(x) = x == NaN ? x : isinteger(x) ? convert(Int, x) : rationalize(x)
 
 Base.rationalize(x::Rational) = x
