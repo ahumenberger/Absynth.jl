@@ -6,7 +6,7 @@ Absynth is a Julia package for synthesizing loops from a given polynomial loop i
 ## Quick start
 
 ```julia
-julia> ] add https://github.com/ahumenberger/Absynth.jl
+julia> ] add Absynth
 julia> using Absynth
 ```
 
