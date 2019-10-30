@@ -115,6 +115,12 @@ end
 
 Base.size(rt::RecurrenceTemplate) = length(rt.vars)
 
+variables_init(r::RecurrenceTemplate) =
+    [Symbol(string(v)) for v in r.init if !isconstant(v)]
+
+variables_body(r::RecurrenceTemplate) =
+    [Symbol(string(v)) for v in r.body if !isconstant(v)]
+
 # ------------------------------------------------------------------------------
 
 struct ClosedFormTemplate
