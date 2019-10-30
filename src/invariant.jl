@@ -65,6 +65,26 @@ function program_variables(i::Invariant)
     unique(ls)
 end
 
+"Return $true if the invariant is a relation among a single loop iteration."
+function isloopinvariant(i::Invariant)
+    flag = true
+    function_walk(i) do _, args
+        # assume there is just one argument (should be checked on construction)
+        if args[1] != i.lc && args[1] != 0
+            flag = false
+        end
+    end
+    flag
+end
+
+function loopinvariant(i::Invariant)
+    @assert isloopinvariant(i)
+    function_walk(i) do f, args
+        # assume there is just one argument (should be checked on construction)
+        args[1] == 0 ? init_var(f) : f
+    end
+end
+
 constraint_walk(f, i::Invariant) = constraint_walk(f, i.x)
 function_walk(f, i::Invariant) = function_walk(f, i.x)
 
