@@ -65,9 +65,34 @@ function constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Symbol[]) 
             ex = Meta.parse(string(cfin(i)))
             cs &= Constraint{EQ}(ex)
         end
+        # Clauses capturing Cramer's rule
+        ms, us = destructterm(cfin.poly, collect(keys(cfin.subs)))
+        mclause = if length(ms) == 1
+            Clause([Constraint{EQ}(Meta.parse(string(ms[1])))])
+        else
+            Clause([Constraint{EQ}(Meta.parse(string(m1-m2))) for (m1,m2) in combinations(ms, 2)])
+        end
+        cramer = ClauseSet([mclause | Constraint{EQ}(Meta.parse(string(u))) for u in us])
+        # cs &= cramer
+
+        # @info "" ms us
+        for as in Combinatorics.combinations(zip(ms,us)|>collect)
+            length(as) < 2 && continue
+            fs = map(first, as)
+            css = all_equal(fs)
+            for f in fs
+                css &= Constraint{NEQ}(f)
+            end
+            # @info "" css
+            cstr = Constraint{EQ}(Meta.parse(string(sum(map(last, as)))))
+            # @info "" css cstr (~css | cstr)
+            # cs &= (~css | cstr)
+        end
     end
     cs
 end
+
+all_equal(xs) = ClauseSet([Clause([Constraint{EQ}(Meta.parse(string(x-y)))]) for (x,y) in combinations(xs, 2)])
 
 # ------------------------------------------------------------------------------
 
@@ -104,5 +129,5 @@ function factor(ms::Vector{<:Poly}, us::Vector{<:Poly})
             map[m] = u
         end
     end
-    keys(map), Base.values(map)
+    collect(keys(map)), collect(Base.values(map))
 end

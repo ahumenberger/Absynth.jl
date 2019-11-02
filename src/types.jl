@@ -267,7 +267,9 @@ function cstr_roots(sp::SynthesisProblem)
     ps = [r1-r2 for (r1,r2) in combinations(rs, 2)]
     cs2 = ClauseSet(map(Clause ∘ Constraint{NEQ}, ps))
 
-    cs1 & cs2
+    cs3 = ClauseSet([Clause(Constraint{NEQ}(r)) for r in rs])
+
+    cs1 & cs2 & cs3
 end
 
 "Generate constraints defining the initial values."
