@@ -166,15 +166,25 @@ cforms(varcnt::Int, rs::Vector{<:Var}, ms::Vector{Int}; lc::Union{Int,Var}, exp:
 
 # ------------------------------------------------------------------------------
 
+const VarDomain = Union{AlgebraicNumber, Int, Float64, Bool}
+
 struct SynthesisProblem
     inv::Invariant
     rt::RecurrenceTemplate
     ct::ClosedFormTemplate
+    vartypes::Dict{Symbol,Type{<:VarDomain}}
 
-    function SynthesisProblem(inv::Invariant, rt::RecurrenceTemplate, ct::ClosedFormTemplate)
+    function SynthesisProblem(inv::Invariant, rt::RecurrenceTemplate, ct::ClosedFormTemplate; body_domain::Type{<:VarDomain}=AlgebraicNumber, init_domain::Type{<:VarDomain}=AlgebraicNumber)
         @assert issubset(program_variables(inv), rt.vars) "$(program_variables(inv)) is not a subset of $(rt.vars)"
         @assert rt.vars == ct.vars && rt.params == ct.params
-        new(inv, rt, ct)
+        vtypes = Dict{Symbol,Type{<:VarDomain}}()
+        for v in variables_body(rt)
+            push!(vtypes, v=>body_domain)
+        end
+        for v in variables_init(rt)
+            push!(vtypes, v=>init_domain)
+        end
+        new(inv, rt, ct, vtypes)
     end
 end
 
@@ -206,7 +216,7 @@ end
 function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool=true)
     pcp = constraints(sp; progress=progress)
     vars = NLSat.variables(pcp)
-    varmap = convert(Dict{Symbol,Type}, Dict(v=>AlgebraicNumber for v in vars))
+    varmap = Dict{Symbol,Type}(v=>get(sp.vartypes, v, AlgebraicNumber) for v in vars)
     @debug "Variables" varmap
 
     solver = T()

@@ -11,7 +11,7 @@ op_map = Dict(
     :(|)  => :smt_or
 )
 
-lookup!(d, x::Number) = x < 0 ? "(- $(float(abs(x))))" : string(float(x))
+lookup!(d, x::Number) = x < 0 ? "(- $((abs(x))))" : string((x))
 lookup!(d, x::Symbol) = get(op_map, x, string(x))
 
 function lookup!(d, x::Expr)

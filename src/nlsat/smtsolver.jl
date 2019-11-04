@@ -1,3 +1,15 @@
+smt_types = Dict(
+    AlgebraicNumber => :Real,
+    Int             => :Int,
+    Bool            => :Bool
+)
+
+yices_types = Dict(
+    AlgebraicNumber => :real,
+    Int             => :int,
+    Bool            => :bool
+)
+
 mutable struct SMTSolver{name} <: NLSolver
     vars::Dict{Symbol,Type}
     cs::ClauseSet
@@ -16,7 +28,7 @@ SMTSolver(s::String) = SMTSolver{Symbol(s)}
 
 program_name(::Type{SMTSolver{name}}) where {name} = string(name)
 program_name(::T) where {T<:SMTSolver} = program_name(T)
-program_name(::YicesSolver) = "$(program_name(YicesSolver)) --logic=QF_NRA"
+program_name(s::YicesSolver) = "$(program_name(YicesSolver)) --logic=$(get_logic(s))"
 
 exists(::Type{T}) where {T<:SMTSolver} = !isnothing(Sys.which(program_name(T)))
 
@@ -24,13 +36,15 @@ fileext(::SMTSolver) = ".smt2"
 parsefunc(::SMTSolver) = parse_output_smt
 parsefunc(::YicesSolver) = parse_output_yices
 
+get_logic(s::SMTSolver) = any(map(x->x!=AlgebraicNumber, values(s.vars))) ? "QF_NIRA" : "QF_NRA"
+
 function variables!(s::SMTSolver, d::Dict{Symbol,Type})
     push!(s.vars, d...)
 end
 
 function write_header(io::IO, s::SMTSolver)
     write(io, "(set-option:produce-models true)\n")
-    write(io, "(set-logic QF_NRA)\n")
+    write(io, "(set-logic $(get_logic(s)))\n")
 end
 
 function write_header(io::IO, s::Z3Solver) end
@@ -38,13 +52,13 @@ function write_header(io::IO, s::YicesSolver) end
 
 function write_vars(io::IO, s::SMTSolver)
     for (v,t) in s.vars
-        write(io, "(declare-const $v Real)\n")
+        write(io, "(declare-const $v $(smt_types[t]))\n")
     end
 end
 
 function write_vars(io::IO, s::YicesSolver)
     for (v,t) in s.vars
-        write(io, "(define $v::real)\n")
+        write(io, "(define $v::$(yices_types[t]))\n")
     end
 end
 
@@ -82,7 +96,8 @@ function solve(s::SMTSolver; timeout::Int=-1)
     try
         openproc(parsefunc(s), `$(split(program_name(s))) $newpath`, timeout=timeout)
     finally
-        rm(newpath)
+        @info newpath
+        # rm(newpath)
     end
 end
 

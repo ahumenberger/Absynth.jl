@@ -93,9 +93,14 @@ function Base.show(io::IO, c::Clause)
 end
 
 function Base.show(io::IO, cs::ClauseSet)
-    print(io, "$(length(cs))-element ClauseSet:")
-    for c in cs
-        print(io, "\n ")
-        print(IOContext(io, :compact => true), c)
+    compact = get(io, :compact, true)
+    if compact
+        print(io, "ClauseSet($(length(cs)) constraints)")
+    else
+        print(io, "$(length(cs))-element ClauseSet:")
+        for c in cs
+            print(io, "\n ")
+            print(IOContext(io, :compact => true), c)
+        end
     end
 end
