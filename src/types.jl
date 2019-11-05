@@ -255,9 +255,9 @@ end
 function cstr_roots(sp::SynthesisProblem)
     B, rs, ms = body(sp), roots(sp), multiplicities(sp)
     λ = mkvar(gensym_unhashed(:x))
-    BB = copy(B)
+    BB = -B
     for i in diagind(B)
-        BB[i] = λ - BB[i]
+        BB[i] = λ + BB[i]
     end
     cpoly = det(BB)
     factors = prod((λ - r)^m for (r, m) in zip(rs,ms))
