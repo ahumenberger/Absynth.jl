@@ -54,7 +54,12 @@ end
 
 Base.size(s::RecSystem) = length(s.vars)
 
-value(l::RecSystem, k::Int) = l.body^k * l.init
+function value(l::RecSystem, k::Int)
+    @assert k >= 0
+    iszero(k) && return tuple(l.init...)
+    tuple((l.body^k * l.init)...)
+end
+
 value(l::RecSystem, r::UnitRange{Int}) = [value(l, k) for k in r]
 
 function sequentialize(M::Matrix, v::Vector)
