@@ -54,7 +54,12 @@ end
 
 Base.size(s::RecSystem) = length(s.vars)
 
-value(l::RecSystem, k::Int) = l.body^k * l.init
+function value(l::RecSystem, k::Int)
+    @assert k >= 0
+    iszero(k) && return tuple(l.init...)
+    tuple((l.body^k * l.init)...)
+end
+
 value(l::RecSystem, r::UnitRange{Int}) = [value(l, k) for k in r]
 
 function sequentialize(M::Matrix, v::Vector)
@@ -255,9 +260,9 @@ end
 function cstr_roots(sp::SynthesisProblem)
     B, rs, ms = body(sp), roots(sp), multiplicities(sp)
     λ = mkvar(gensym_unhashed(:x))
-    BB = copy(B)
+    BB = -B
     for i in diagind(B)
-        BB[i] = λ - BB[i]
+        BB[i] = λ + BB[i]
     end
     cpoly = det(BB)
     factors = prod((λ - r)^m for (r, m) in zip(rs,ms))

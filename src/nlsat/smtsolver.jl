@@ -145,6 +145,6 @@ function parse_output_yices(s::Array{String})
     m
 end
 
-try_int(x) = x == NaN ? x : isinteger(x) ? convert(Int, x) : rationalize(x)
+try_int(x) = x === NaN ? x : isinteger(x) ? convert(Int, x) : rationalize(x)
 
 Base.rationalize(x::Rational) = x
