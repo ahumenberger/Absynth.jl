@@ -17,9 +17,9 @@ include("nlsat/NLSat.jl")
 using Absynth.NLSat
 
 const Yices = YicesSolver
-const Z3 = Z3Solver
+# const Z3 = Z3Solver
 
-export YicesSolver, Z3Solver, Yices, Z3, SMTSolver
+export YicesSolver, Z3Solver, Yices, SMTSolver
 
 include("utils.jl")
 include("poly.jl")

@@ -1,6 +1,6 @@
 module NLSat
 
-export NLSolver, Z3Solver, YicesSolver, SMTSolver
+export NLSolver, Z3Solver, YicesSolver, SMTSolver, CFiniteSolver
 export NLStatus, NLModel
 export variables!, constraints!, solve
 
@@ -36,11 +36,12 @@ abstract type NLSolver end
 
 function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
 function solve(s::NLSolver; timeout::Int = -1) end
-constraints!(s::NLSolver, cs::ClauseSet) = s.cs &= cs
+constraints!(s::NLSolver, cs::ClauseSet) = s.clauses &= cs
 
 # ------------------------------------------------------------------------------
 
 # include("mathematica.jl")
 include("smtsolver.jl")
+include("cfinitesolver.jl")
 
 end # module

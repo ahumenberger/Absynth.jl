@@ -1,4 +1,4 @@
-export Constraint, Clause, ClauseSet
+export AbstractConstraint, CFiniteConstraint, Constraint, Clause, ClauseSet
 export EQ, NEQ, LT, LEQ, GT, GEQ
 export variables
 
@@ -13,7 +13,37 @@ _constraintrel_map = Dict(
     LEQ => :(>=)
 )
 
-struct Constraint{ConstraintRel}
+const XExpr = Union{Expr,Symbol,Number}
+
+abstract type AbstractConstraint end
+
+struct CFiniteConstraint{R} <: AbstractConstraint
+    us::Vector{XExpr}
+    ms::Vector{XExpr}
+
+    function CFiniteConstraint{R}(us, ms) where {R}
+        @assert R == EQ || R == NEQ
+        @assert length(us) == length(ms)
+        _us = map(Meta.parse ∘ string, us)
+        _ms = map(Meta.parse ∘ string, ms)
+        new(_us, _ms)
+    end
+end
+
+Base.:~(c::CFiniteConstraint{EQ}) = CFiniteConstraint{NEQ}(c.us, c.ms)
+Base.:~(c::CFiniteConstraint{NEQ}) = CFiniteConstraint{EQ}(c.us, c.ms)
+
+function expand(c::CFiniteConstraint{R}) where {R}
+    cs = ClauseSet()
+    for i in 1:length(c.us)
+        ms = map(x->:($x^(i-1)), c.ms)
+        terms = [:($u*$m) for (u,m) in zip(c.us,ms)]
+        cs &= Constraint{EQ}(Expr(:call, :+, terms...))
+    end
+    R == NEQ ? ~cs : cs
+end
+
+struct Constraint{ConstraintRel} <: AbstractConstraint
     poly::Union{Expr,Symbol,Number}
 
     function Constraint{ConstraintRel}(x) where {ConstraintRel}
@@ -22,7 +52,7 @@ struct Constraint{ConstraintRel}
     end
 end
 
-const Clause = Set{Constraint}
+const Clause = Set{AbstractConstraint}
 const ClauseSet = Set{Clause}
 
 Clause(c::Constraint) = Clause([c])
@@ -34,8 +64,9 @@ Base.:~(c::Constraint{LT}) = Constraint{GEQ}(c.poly)
 Base.:~(c::Constraint{LEQ}) = Constraint{GT}(c.poly)
 Base.:~(c::Constraint{GT}) = Constraint{LEQ}(c.poly)
 Base.:~(c::Constraint{GEQ}) = Constraint{LT}(c.poly)
-Base.:|(x::Constraint, y::Constraint) = Clause([x, y])
-Base.:&(x::Constraint, y::Constraint) = ClauseSet([Clause([x]), Clause([y])])
+
+Base.:|(x::AbstractConstraint, y::AbstractConstraint) = Clause([x, y])
+Base.:&(x::AbstractConstraint, y::AbstractConstraint) = ClauseSet([Clause([x]), Clause([y])])
 
 Base.:~(c::Clause) = ClauseSet([Clause([~x]) for x in c])
 Base.:|(x::Clause, y::Clause) = Clause(union(x, y))
