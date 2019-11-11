@@ -45,23 +45,37 @@ function solve(s::CFiniteSolver; timeout::Int=-1)
     for (k,v) in s.vars
         push!(z3vars, k=>real_const(ctx, string(k)))
     end
-    @info "" z3vars
+    # @info "" z3vars
 
     z3 = Solver(ctx, "QF_NRA")
     for cl in s.clauses
-        @info "" _Z3Expr(cl, z3vars)
+        # @info "" _Z3Expr(cl, z3vars)
         add(z3, _Z3Expr(cl, z3vars))
     end
     res = check(z3)
     if res == Z3.sat
-        m = get_model(z3)
-        @info "" m[1] m[2]
-        for mm in m
-            @info "" mm
-        end
+        return sat, Dates.Second(5), parse_model(get_model(z3))
     elseif res == Z3.unsat
         return unsat
     elseif res == Z3.unknown
         return unknown
     end
+end
+
+function parse_model(m::Model)
+    nlmodel = NLModel()
+    for (k,v) in consts(m)
+        sym = Symbol(string(k()))
+        if is_int(v)
+            push!(nlmodel, sym=>Int(v))
+        elseif is_real(v)
+            push!(nlmodel, sym=>try_int(Rational{Int}(v)))
+        elseif is_algebraic(v)
+            approx = get_decimal_string(v, 3)
+            @warn "Algebraic numbers not yet supported, got $(v), returning approximation $(approx)"
+            push!(nlmodel, sym=>approx)
+        end
+    end
+    @info "" nlmodel
+    nlmodel
 end
