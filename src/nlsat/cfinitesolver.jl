@@ -69,6 +69,20 @@ function preprocess_clauseset(cs::ClauseSet)
     cl_norm, cl_cfin
 end
 
+function solve_cfinite(s::Solver, cs::Vector{CFiniteConstraint{EQ}})
+    us = [[_Z3Expr(ctx(s), x) for x in c.us] for c in cs]
+    ms = [[_Z3Expr(ctx(s), x) for x in c.ms] for c in cs]
+    soft_clauses = collect(Iterators.flatten(us))
+
+    maxsat(s, soft_clauses)
+    model = get_model(s)
+    for m in ms
+        for m_part in partitions(ms)
+            all(is_true(eval(model, x)) for x in m_part)
+        end
+    end
+end
+
 function solve(s::CFiniteSolver; timeout::Int=-1)
     ctx = Context()
     if timeout > 0
