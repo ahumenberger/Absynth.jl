@@ -31,18 +31,20 @@ function relax_core(s::Solver, core::ExprVector, cs::Vector{<:Z3Expr})
     end
     for i in 1:length(core)-1
         prefix = add_def(s, and(core[i], prefix))
-        cs = [or(c, add_def(s, or(prefix, core[i+1]))) for c in cs]
+        cs = Z3Expr[or(c, add_def(s, or(prefix, core[i+1]))) for c in cs]
     end
     cs
 end
 
 function maxsat(s::Solver, cs::Vector{<:Z3Expr})
-    cost = 0
+    res = check(s)
+    res != Z3.sat && return res, nothing
+    # cost = 0
     cs0 = copy(cs)
     while check(s, cs) == Z3.unsat
-        cost += 1
+        # cost += 1
         cs = relax_core(s, unsat_core(s), cs)
     end
-    cost, [c for c in cs0 if is_true(Z3.eval(get_model(s), c, false))]
+    Z3.sat, [c for c in cs0 if is_true(Z3.eval(get_model(s), c, false))]
 end
 
