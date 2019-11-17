@@ -4,6 +4,7 @@ export NLSolver, Z3Solver, YicesSolver, SMTSolver, CFiniteSolver
 export NLStatus, NLModel
 export variables!, constraints!, solve
 
+using DataStructures
 using DelimitedFiles
 using Distributed
 using MacroTools: walk, postwalk, @capture, @match, replace

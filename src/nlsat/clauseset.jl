@@ -52,8 +52,8 @@ struct Constraint{ConstraintRel} <: AbstractConstraint
     end
 end
 
-const Clause = Set{AbstractConstraint}
-const ClauseSet = Set{Clause}
+const Clause = OrderedSet{AbstractConstraint}
+const ClauseSet = OrderedSet{Clause}
 
 Clause(c::Constraint) = Clause([c])
 ClauseSet(c::Clause) = ClauseSet([c])
