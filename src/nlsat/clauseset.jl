@@ -24,8 +24,8 @@ struct CFiniteConstraint{R} <: AbstractConstraint
     function CFiniteConstraint{R}(us, ms) where {R}
         @assert R == EQ || R == NEQ
         @assert length(us) == length(ms)
-        _us = map(Meta.parse ∘ string, us)
-        _ms = map(Meta.parse ∘ string, ms)
+        _us = [Meta.parse(string(u)) for u in us]
+        _ms = [Meta.parse(string(m)) for m in ms]
         new(_us, _ms)
     end
 end
@@ -55,7 +55,7 @@ end
 const Clause = OrderedSet{AbstractConstraint}
 const ClauseSet = OrderedSet{Clause}
 
-Clause(c::Constraint) = Clause([c])
+Clause(c::AbstractConstraint) = Clause([c])
 ClauseSet(c::Clause) = ClauseSet([c])
 
 Base.:~(c::Constraint{EQ}) = Constraint{NEQ}(c.poly)
@@ -79,8 +79,8 @@ Base.:&(x::ClauseSet, y::ClauseSet) = union(x, y)
 Base.:|(x, y) = Base.:|(promote(x, y)...)
 Base.:&(x, y) = Base.:&(promote(x, y)...)
 
-Base.convert(::Type{Clause}, c::Constraint) = Clause([c])
-Base.convert(::Type{ClauseSet}, c::Constraint) = ClauseSet([Clause([c])])
+Base.convert(::Type{Clause}, c::AbstractConstraint) = Clause([c])
+Base.convert(::Type{ClauseSet}, c::AbstractConstraint) = ClauseSet([Clause([c])])
 Base.convert(::Type{ClauseSet}, c::Clause) = ClauseSet([c])
 
 Base.convert(::Type{Expr}, c::Constraint{EQ}) = :($(c.poly) == 0)
@@ -92,14 +92,15 @@ Base.convert(::Type{Expr}, c::Constraint{GEQ}) = :($(c.poly) >= 0)
 Base.convert(::Type{Expr}, c::Clause) = length(c) == 1 ? convert(Expr, first(c)) : Expr(:call, :|, [convert(Expr, x) for x in c]...)
 Base.convert(::Type{Expr}, c::ClauseSet) = Expr(:call, :&, [convert(Expr, x) for x in c]...)
 
-Base.promote_rule(::Type{Clause}, ::Type{Constraint{R}}) where {R} = Clause
-Base.promote_rule(::Type{Constraint{R}}, ::Type{Clause}) where {R} = Clause
-Base.promote_rule(::Type{ClauseSet}, ::Type{Constraint{R}}) where {R} = ClauseSet
-Base.promote_rule(::Type{Constraint{R}}, ::Type{ClauseSet}) where {R} = ClauseSet
+Base.promote_rule(::Type{Clause}, ::Type{<:AbstractConstraint}) = Clause
+Base.promote_rule(::Type{<:AbstractConstraint}, ::Type{Clause}) = Clause
+Base.promote_rule(::Type{ClauseSet}, ::Type{<:AbstractConstraint}) = ClauseSet
+Base.promote_rule(::Type{<:AbstractConstraint}, ::Type{ClauseSet}) = ClauseSet
 Base.promote_rule(::Type{ClauseSet}, ::Type{Clause}) = ClauseSet
 Base.promote_rule(::Type{Clause}, ::Type{ClauseSet}) = ClauseSet
 
 variables(c::Constraint) = symbols(c.poly)
+variables(c::CFiniteConstraint) = union((symbols(x) for x in c.us)..., (symbols(x) for x in c.ms)...) 
 variables(c::Clause) = union((variables(x) for x in c)...)
 variables(c::ClauseSet) = union((variables(x) for x in c)...)
 
