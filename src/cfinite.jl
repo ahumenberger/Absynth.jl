@@ -69,6 +69,22 @@ function constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Symbol[]) 
     cs
 end
 
+function cfinite_constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Symbol[]) where {S}
+    cs = ClauseSet()
+    qs = destructpoly([expr.poly], split_vars)
+    for (i, q) in enumerate(qs)
+        cfin = CFiniteExpr{S}(q, expr.subs)
+        ms, us = destructterm(cfin.poly, collect(keys(cfin.subs)))
+        cs &= CFiniteConstraint{EQ}(us, ms)
+    #     l = order(cfin)
+    #     for i in 0:l-1
+    #         ex = Meta.parse(string(cfin(i)))
+    #         cs &= Constraint{EQ}(ex)
+    #     end
+    end
+    cs
+end
+
 # ------------------------------------------------------------------------------
 
 coeffs(p::Poly, v::Var) = [coefficient(p, v^i, [v]) for i in 0:maxdegree(p, v)]

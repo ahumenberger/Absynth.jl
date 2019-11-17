@@ -250,7 +250,7 @@ function cstr_algrel(sp::SynthesisProblem)
         end
         cfin = eval(expr)
         splitvars = Symbol[params(Symbol, sp); sp.inv.lc]
-        cstr = constraints(cfin; split_vars=splitvars)
+        cstr = cfinite_constraints(cfin; split_vars=splitvars)
         :($cstr)
     end
     eval(res)
