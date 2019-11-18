@@ -94,7 +94,7 @@ function check_cfinite(s::Solver, vars, cs)
 end
 
 function solve(s::CFiniteSolver; timeout::Int=-1)
-    ctx = defaultctx()
+    ctx = main_ctx()
     # if timeout > 0
     # end
     z3vars = Dict{Symbol,Z3Expr}()
