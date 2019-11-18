@@ -200,8 +200,8 @@ function constraints(sp::SynthesisProblem; progress::Bool=true)
     csinit   = cstr_init(sp)
     csroots  = cstr_roots(sp)
     csrel    = cstr_algrel(sp)
-    @debug "Constraints" cscforms csinit csroots csrel
-    pcp = cscforms & csinit & csroots & csrel
+    @info "Constraints" cscforms csinit csroots csrel
+    pcp = csroots & cscforms & csinit & csrel
     if progress
         pcp &= cstr_progress(sp)
     end
