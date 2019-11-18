@@ -38,13 +38,15 @@ end
 
 function maxsat(s::Solver, cs::Vector{<:Z3Expr})
     res = check(s)
-    res != Z3.sat && return res, nothing
-    # cost = 0
+    # @info "after"
+    # res != Z3.sat && return res, nothing
+    cost = 0
     cs0 = copy(cs)
     while check(s, cs) == Z3.unsat
-        # cost += 1
+        cost += 1
         cs = relax_core(s, unsat_core(s), cs)
     end
+    # @info "Maxsat cost" cost cs0
     Z3.sat, [c for c in cs0 if is_true(Z3.eval(get_model(s), c, false))]
 end
 

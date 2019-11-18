@@ -214,9 +214,13 @@ function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool
     varmap = convert(Dict{Symbol,Type}, Dict(v=>AlgebraicNumber for v in vars))
     @debug "Variables" varmap
 
+    vs = variables_body(sp.rt)
+    soft = ClauseSet([Clause(Constraint{EQ}(v)) for v in vs])
+
     solver = T()
     NLSat.variables!(solver, varmap)
     NLSat.constraints!(solver, pcp)
+    NLSat.constraints_soft!(solver, soft)
     solver
 end
 
