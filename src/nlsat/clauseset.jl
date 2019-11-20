@@ -43,6 +43,8 @@ function expand(c::CFiniteConstraint{R}) where {R}
     R == NEQ ? ~cs : cs
 end
 
+expand(c::T) where {T<:AbstractConstraint} = ClauseSet(Clause(c))
+
 struct Constraint{ConstraintRel} <: AbstractConstraint
     poly::Union{Expr,Symbol,Number}
 
