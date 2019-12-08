@@ -98,8 +98,8 @@ function check_clauses(s::Solver, mss, uss)
 end
 
 function check_cfinite(s::CFiniteSolver, z3::Solver, vars)
-    uss = [[Z3Expr(ctx(z3), vars, x) for x in c.us] for c in s.cfin_clauses]
-    mss = [[Z3Expr(ctx(z3), vars, x) for x in c.ms] for c in s.cfin_clauses]
+    uss = [[Z3Expr(ctx(z3), vars, x) for x in c[1].us] for c in s.cfin_clauses]
+    mss = [[Z3Expr(ctx(z3), vars, x) for x in c[1].ms] for c in s.cfin_clauses]
 
     soft_clauses = Z3Expr[u == 0 for u in Iterators.flatten(uss)]
 
@@ -114,6 +114,16 @@ function check_cfinite(s::CFiniteSolver, z3::Solver, vars)
     Z3.unsat
 end
 
+Tactic(s::String) = Z3.Tactic(main_ctx(), s)
+
+function mk_solver()
+    set_param("unsat_core", true)
+    t = Tactic("simplify") & Tactic("propagate-values") & Tactic("solve-eqs") &
+        Tactic("purify-arith") & Tactic("elim-term-ite") & Tactic("simplify") & Tactic("tseitin-cnf") &
+        Tactic("nlsat")
+    Z3.mk_solver(t)
+end
+
 function solve(s::CFiniteSolver; timeout::Int=-1)
     ctx = main_ctx()
     if timeout > 0
@@ -124,7 +134,8 @@ function solve(s::CFiniteSolver; timeout::Int=-1)
         push!(z3vars, k=>real_const(ctx, string(k)))
     end
     
-    z3 = Solver(ctx, "QF_NRA")
+    # z3 = Solver(ctx, "QF_NRA")
+    z3 = mk_solver()
     for cl in s.hard_clauses
         add(z3, Z3Expr(ctx, z3vars, cl))
     end
