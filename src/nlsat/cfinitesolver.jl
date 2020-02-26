@@ -65,10 +65,11 @@ function find_partition(model::Model, ms)
 end
 
 function check_partition(model::Model, us, ps)
+    zero = real_val(ctx(model), 0)
     for subset in ps
         s = sum(us[i] for i in subset)
-        if !is_true(Z3.eval(model, s == real_val(ctx(s), 0), false))
-            return first(subset)
+        if !is_true(Z3.eval(model, s == zero, false))
+            return first(i for i in subset if is_true(Z3.eval(model, us[i] != zero, false)))
         end
     end
     nothing # all partitions are satisfied
@@ -83,6 +84,7 @@ end
 
 function check_clauses(s::Solver, mss, uss)
     model = get_model(s)
+    @info "" model
     for (ms, us) in zip(mss, uss)
         ps = find_partition(model, ms)
         violated = check_partition(model, us, ps)
@@ -102,11 +104,12 @@ function check_cfinite(s::CFiniteSolver, z3::Solver, vars)
     mss = [[Z3Expr(ctx(z3), vars, x) for x in c[1].ms] for c in s.cfin_clauses]
 
     soft_clauses = Z3Expr[u == 0 for u in Iterators.flatten(uss)]
+    @info "before" soft_clauses
 
     max_it = length(soft_clauses)
     for _ in 1:max_it
         res, _ = maxsat(z3, soft_clauses)
-        @info res
+        @info "" soft_clauses
         res != Z3.sat && return res # hard clauses not satisfiable or timeout
         sat = check_clauses(z3, mss, uss)
         sat && return Z3.sat
