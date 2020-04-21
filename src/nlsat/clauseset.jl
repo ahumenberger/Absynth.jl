@@ -16,6 +16,8 @@ _constraintrel_map = Dict(
 const XExpr = Union{Expr,Symbol,Number}
 
 abstract type AbstractConstraint end
+const Clause = OrderedSet{AbstractConstraint}
+const ClauseSet = OrderedSet{Clause}
 
 struct CFiniteConstraint{R} <: AbstractConstraint
     us::Vector{XExpr}
@@ -36,7 +38,7 @@ Base.:~(c::CFiniteConstraint{NEQ}) = CFiniteConstraint{EQ}(c.us, c.ms)
 function expand(c::CFiniteConstraint{R}) where {R}
     cs = ClauseSet()
     for i in 1:length(c.us)
-        ms = map(x->:($x^(i-1)), c.ms)
+        ms = map(x->:($x^($i-1)), c.ms)
         terms = [:($u*$m) for (u,m) in zip(c.us,ms)]
         cs &= Constraint{EQ}(Expr(:call, :+, terms...))
     end
@@ -44,6 +46,8 @@ function expand(c::CFiniteConstraint{R}) where {R}
 end
 
 expand(c::T) where {T<:AbstractConstraint} = ClauseSet(Clause(c))
+expand(c::Clause) = foldl(|, (expand(x) for x in c))
+expand(c::ClauseSet) = foldl(&, (expand(x) for x in c))
 
 struct Constraint{ConstraintRel} <: AbstractConstraint
     poly::Union{Expr,Symbol,Number}
@@ -53,9 +57,6 @@ struct Constraint{ConstraintRel} <: AbstractConstraint
         new{ConstraintRel}(Meta.parse(string(x)))
     end
 end
-
-const Clause = OrderedSet{AbstractConstraint}
-const ClauseSet = OrderedSet{Clause}
 
 Clause(c::AbstractConstraint) = Clause([c])
 ClauseSet(c::Clause) = ClauseSet([c])

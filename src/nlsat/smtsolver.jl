@@ -24,9 +24,8 @@ fileext(::SMTSolver) = ".smt2"
 parsefunc(::SMTSolver) = parse_output_smt
 parsefunc(::YicesSolver) = parse_output_yices
 
-function variables!(s::SMTSolver, d::Dict{Symbol,Type})
-    push!(s.vars, d...)
-end
+add_vars!(s::SMTSolver, d::Dict{Symbol,Type}) = push!(s.vars, d...)
+add!(s::SMTSolver, cs::ClauseSet) = s.cs &= cs
 
 function write_header(io::IO, s::SMTSolver)
     write(io, "(set-option:produce-models true)\n")

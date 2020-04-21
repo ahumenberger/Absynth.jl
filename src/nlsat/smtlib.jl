@@ -38,6 +38,7 @@ preprocess_smt(x) = postwalk(x) do y
 end
 
 function smt(cs::ClauseSet; expand_pow::Bool=false)
+    cs = expand(cs)
     expr = convert(Expr, cs)
     expr = expand_pow ? preprocess_smt(expr) : expr
     d, x = cse(expr)

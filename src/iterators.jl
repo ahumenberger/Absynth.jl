@@ -69,7 +69,7 @@ end
 function next_constraints!(s::NLSolver, sp::SynthesisProblem, m::NLModel)
     vs = [Symbol(string(v)) for v in body(sp) if !isconstant(v)]
     cs = Clause([Constraint{NEQ}(:($v - $(m[v]))) for v in vs])
-    constraints!(s, ClauseSet(cs))
+    add!(s, ClauseSet(cs))
 end
 
 # ------------------------------------------------------------------------------

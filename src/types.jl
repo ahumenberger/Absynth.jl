@@ -218,9 +218,9 @@ function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool
     soft = ClauseSet([Clause(Constraint{EQ}(v)) for v in vs])
 
     solver = T()
-    NLSat.variables!(solver, varmap)
-    NLSat.constraints!(solver, pcp)
-    NLSat.constraints_soft!(solver, soft)
+    NLSat.add_vars!(solver, varmap)
+    NLSat.add!(solver, pcp)
+    # NLSat.add_soft!(solver, soft)
     solver
 end
 

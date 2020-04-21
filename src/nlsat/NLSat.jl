@@ -2,7 +2,7 @@ module NLSat
 
 export NLSolver, Z3Solver, YicesSolver, SMTSolver, CFiniteSolver
 export NLStatus, NLModel
-export variables!, constraints!, solve
+export add_vars!, add!, add_soft!, solve
 
 using DataStructures
 using DelimitedFiles
@@ -35,9 +35,10 @@ include("lisp.jl")
 
 abstract type NLSolver end
 
-function variables!(s::NLSolver, d::Dict{Symbol,Type}) end
+function add_vars!(s::NLSolver, d::Dict{Symbol,Type}) end
+function add!(s::NLSolver, cs::ClauseSet) end
+function add_soft!(s::NLSolver, cs::ClauseSet) end
 function solve(s::NLSolver; timeout::Int = -1) end
-constraints!(s::NLSolver, cs::ClauseSet) = s.clauses &= cs
 
 # ------------------------------------------------------------------------------
 

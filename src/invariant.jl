@@ -65,7 +65,7 @@ function program_variables(i::Invariant)
     unique(ls)
 end
 
-"Return $true if the invariant is a relation among a single loop iteration."
+"Return true if the invariant is a relation among a single loop iteration."
 function isloopinvariant(i::Invariant)
     flag = true
     function_walk(i) do _, args
