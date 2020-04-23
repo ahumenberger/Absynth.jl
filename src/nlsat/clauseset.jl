@@ -40,7 +40,11 @@ function expand(c::CFiniteConstraint{R}) where {R}
     for i in 1:length(c.us)
         ms = map(x->:($x^($i-1)), c.ms)
         terms = [:($u*$m) for (u,m) in zip(c.us,ms)]
-        cs &= Constraint{EQ}(Expr(:call, :+, terms...))
+        if length(terms) == 1
+            cs &= Constraint{EQ}(terms[1])
+        else
+            cs &= Constraint{EQ}(Expr(:call, :+, terms...))
+        end
     end
     R == NEQ ? ~cs : cs
 end
