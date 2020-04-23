@@ -4,6 +4,7 @@ op_map = Dict(
     :+    => :smt_plus,
     :-    => :smt_minus,
     :*    => :smt_mult,
+    :/    => :smt_div,
     :^    => :smt_pow,
     :(==) => :smt_eq,
     :(!=) => :smt_neq,
@@ -50,6 +51,7 @@ end
 
 smt_plus(x...)   = "(+ $(join(x, " ")))"
 smt_mult(x...)   = "(* $(join(x, " ")))"
+smt_div(x...)    = "(/ $(join(x, " ")))"
 smt_and(x...)    = "(and $(join(x, " ")))"
 smt_or(x...)     = "(or $(join(x, " ")))"
 smt_eq(x, y)     = "(= $x $y)"
