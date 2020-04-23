@@ -7,6 +7,9 @@ prettify_number(x::Rational) = iszero(numerator(x)) || isone(denominator(x)) ? n
 prettify_number(x::Poly) = iszero(x) ? 0 : isconstant(x) ? prettify_number(coefficient(x[1])) : x
 prettify_number(x) = x
 
+Base.alignment(io::IO, x::Symbol) = (length(sprint(show, x, context=io, sizehint=0)), 0)
+Base.alignment(io::IO, x::Poly) = (length(sprint(show, x, context=io, sizehint=0)), 0)
+
 # ------------------------------------------------------------------------------
 
 lpar(h::Int, d = "") = h == 1 ? "($(d)" : join(["⎛$(d)"; fill("⎜$(d)", h - 2); "⎝$(d)"], "\n")
@@ -43,9 +46,16 @@ function _print_recsystem(io::IO, vars, body, init)
     lp, rp, plus = "(", ")", "+" 
     zero, one = "0", "1"
 
-    vars0 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", vars)), "\""=>"")
-    vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", vars)), "\""=>"")
-    vars2 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", vars)), "\""=>"")
+    _vars = sprint(Base.print_matrix, vars)
+    # vars0 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", vars)), "\""=>"")
+    # vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", vars)), "\""=>"")
+    # vars2 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", vars)), "\""=>"")
+    vars0 = Base.replace(_vars, "\n"=>"$lp$zero$rp\n") * "$lp$zero$rp"
+    vars1 = Base.replace(_vars, "\n"=>"$lp$lc$rp\n") * "$lp$lc$rp"
+    vars2 = Base.replace(_vars, "\n"=>"$lp$lc$plus$one$rp\n") * "$lp$lc$plus$one$rp"
+    vars0 = Base.replace(vars0, ":"=>"")
+    vars1 = Base.replace(vars1, ":"=>"")
+    vars2 = Base.replace(vars2, ":"=>"")
     body = map(prettify_number, body)
     init = map(prettify_number, init)
     body = sprint(Base.print_matrix, body)
