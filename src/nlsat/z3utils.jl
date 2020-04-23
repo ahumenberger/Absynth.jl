@@ -45,7 +45,7 @@ end
 
 # end
 
-function Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, ex::XExpr)
+Z3.CxxWrap.@cxxdereference function Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, ex::XExpr)
     t = postwalk(ex) do x
         if x isa Float64
             # if isinteger(x)
