@@ -6,8 +6,8 @@ end
 function (x::NExp{S})(n::Int) where {S}
     exp = MultivariatePolynomials.subs(x.exp, mkvar(S)=>n)
     @assert isconstant(exp)
-    ex = convert(Number, exp)
-    x.base^ex
+    # ex = convert(Int, exp)
+    x.base^exp
 end
 
 _exp_map = Dict{NExp,Var}()
@@ -28,6 +28,7 @@ function _merge(x::Dict{Var, NExp{S}}, y::Dict{Var, NExp{S}}) where {S}
     merge(x, y)
 end
 
+Base.:-(x::CFiniteExpr{S}) where {S} = -1 * x
 Base.:+(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly + y.poly, merge(x.subs, y.subs))
 Base.:-(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly - y.poly, merge(x.subs, y.subs))
 Base.:*(x::CFiniteExpr{S}, y::CFiniteExpr{S}) where {S} = CFiniteExpr{S}(x.poly * y.poly, merge(x.subs, y.subs))
@@ -73,8 +74,11 @@ function cfinite_constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Sy
     cs = ClauseSet()
     qs = destructpoly([expr.poly], split_vars)
     for (i, q) in enumerate(qs)
+        subs = [k=>v.base^v.exp(1) for (k, v) in expr.subs]
         cfin = CFiniteExpr{S}(q, expr.subs)
         ms, us = destructterm(cfin.poly, collect(keys(cfin.subs)))
+        ms = [MultivariatePolynomials.subs(m, subs...) for m in ms]
+        ms, us = factor(ms, collect(us))
         cs &= CFiniteConstraint{EQ}(us, ms)
     #     l = order(cfin)
     #     for i in 0:l-1
