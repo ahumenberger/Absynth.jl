@@ -313,7 +313,12 @@ end
 function cstr_progress(sp::SynthesisProblem)
     pars = params(Poly, sp)
     A, B = init(sp)*pars, body(sp)
-    cs = B * B * A - B * A
+    cs1 = B * B * A - B * A
+    cs2 = B * B * B * A - B * A
+    _cstr_progress(sp, cs1, pars) & _cstr_progress(sp, cs2, pars)
+end
+
+function _cstr_progress(sp::SynthesisProblem, cs, pars)
     # do not consider variables which only occurr as initial variable in polys
     invvars = program_variables(sp.inv)
     # filter!(!isinitvar, vars)
