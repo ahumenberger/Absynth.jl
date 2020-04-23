@@ -1,6 +1,6 @@
 module NLSat
 
-export NLSolver, Z3Solver, YicesSolver, SMTSolver, CFiniteSolver
+export NLSolver, Z3Solver, SMTSolverZ3, SMTSolverYices, SMTSolver, CFiniteSolver
 export NLStatus, NLModel
 export add_vars!, add!, add_soft!, solve
 
@@ -9,6 +9,7 @@ using DelimitedFiles
 using Distributed
 using MacroTools: walk, postwalk, @capture, @match, replace
 using Dates
+using Z3
 
 const NLModel = Dict{Symbol,Number}
 
@@ -28,6 +29,7 @@ include("../utils.jl")
 include("clauseset.jl")
 include("smtlib.jl")
 include("lisp.jl")
+include("z3utils.jl")
 
 # ------------------------------------------------------------------------------
 
@@ -43,6 +45,7 @@ function solve(s::NLSolver; timeout::Int = -1) end
 # ------------------------------------------------------------------------------
 
 # include("mathematica.jl")
+include("z3solver.jl")
 include("smtsolver.jl")
 include("cfinitesolver.jl")
 
