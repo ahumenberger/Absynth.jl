@@ -58,8 +58,13 @@ function _print_recsystem(io::IO, vars, body, init)
     vars2 = Base.replace(vars2, ":"=>"")
     body = map(prettify_number, body)
     init = map(prettify_number, init)
+    # add extra column such that all rows have equal length
+    body = hcat(body, fill(nothing, size(body, 1)))
+    init = hcat(init, fill(nothing, size(init, 1)))
     body = sprint(Base.print_matrix, body)
     init = sprint(Base.print_matrix, init)
+    body = Base.replace(body, "  $nothing" => "")
+    init = Base.replace(init, "  $nothing" => "")
 
     lhs1 = (lstr, vars2, rstr)
     rhs1 = (lstr, body, rstr, lstr, vars1, rstr)
