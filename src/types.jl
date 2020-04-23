@@ -200,7 +200,7 @@ function constraints(sp::SynthesisProblem; progress::Bool=true)
     csinit   = cstr_init(sp)
     csroots  = cstr_roots(sp)
     csrel    = cstr_algrel(sp)
-    @info "Constraints" cscforms csinit csroots csrel
+    @debug "Constraints" cscforms csinit csroots csrel
     pcp = csroots & cscforms & csinit & csrel
     if progress
         pcp &= cstr_progress(sp)
@@ -224,10 +224,10 @@ function create_solver(sp::SynthesisProblem, T::Type{<:NLSolver}; progress::Bool
     solver
 end
 
-function parse_model(sp::SynthesisProblem, model::NLModel)
+function parse_model(sp::SynthesisProblem, model::Dict{Symbol,T}) where {T<:Number}
     _A, _B = init(sp), body(sp)
-    A = Number[get(model, Symbol(string(b)), b) for b in _A]
-    B = Number[get(model, Symbol(string(b)), b) for b in _B]
+    A = T[get(model, Symbol(string(b)), b) for b in _A]
+    B = T[get(model, Symbol(string(b)), b) for b in _B]
     RecSystem(vars(sp), params(sp), A, B)
 end
 

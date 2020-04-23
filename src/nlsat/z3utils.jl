@@ -10,7 +10,7 @@ function mk_solver()
 end
 
 function parse_model(m::Model)
-    nlmodel = NLModel()
+    nlmodel = Dict{Symbol, Rational{Int}}()
     for (k,v) in consts(m)
         sym = Symbol(string(k))
         if is_int(v)

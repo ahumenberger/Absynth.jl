@@ -11,7 +11,7 @@ using MacroTools: walk, postwalk, @capture, @match, replace
 using Dates
 using Z3
 
-const NLModel = Dict{Symbol,Number}
+const NLModel = Dict{Symbol,<:Number}
 
 # ------------------------------------------------------------------------------
 

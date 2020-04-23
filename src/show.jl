@@ -3,6 +3,10 @@ to_assignments(xs::Vector, ys::Vector) = ["$x = $y" for (x, y) in zip(xs, ys)]
 to_lines(xs::Vector{String}, indent::Int) = join(xs, "\n$(repeat("    ", indent))")
 to_list(xs) = join(xs, ", ")
 
+prettify_number(x::Rational) = iszero(numerator(x)) || isone(denominator(x)) ? numerator(x) : x
+prettify_number(x::Poly) = iszero(x) ? 0 : isconstant(x) ? prettify_number(coefficient(x[1])) : x
+prettify_number(x) = x
+
 # ------------------------------------------------------------------------------
 
 lpar(h::Int, d = "") = h == 1 ? "($(d)" : join(["⎛$(d)"; fill("⎜$(d)", h - 2); "⎝$(d)"], "\n")
@@ -42,6 +46,8 @@ function _print_recsystem(io::IO, vars, body, init)
     vars0 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", vars)), "\""=>"")
     vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", vars)), "\""=>"")
     vars2 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", vars)), "\""=>"")
+    body = map(prettify_number, body)
+    init = map(prettify_number, init)
     body = sprint(Base.print_matrix, body)
     init = sprint(Base.print_matrix, init)
 
