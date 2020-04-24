@@ -28,6 +28,13 @@ add_vars!(s::CFiniteSolver, d::Dict{Symbol,Type}) = push!(s.vars, d...)
 
 # ------------------------------------------------------------------------------
 
+const Partition = Vector{Vector{Int}}
+
+g_partition_history = Vector{Partition}()
+g_solutions = Vector{Partition}()
+
+# ------------------------------------------------------------------------------
+
 function find_partition(model::Model, ms)
     ps = Dict{Z3Expr,Vector{Int}}()
     for (i, m) in enumerate(ms)
@@ -41,14 +48,7 @@ function find_partition(model::Model, ms)
     values(ps)
 end
 
-const Partition = Vector{Vector{Int}}
-
-g_partition_history = Vector{Partition}()
-g_solutions = Vector{Partition}()
-
-
 function move_iterator(P::Partition, set_idx, elem)
-    # elem = P[set_idx][elem_idx]
     P = deepcopy(P)
     deleteat!(P[set_idx], findfirst(x->x==elem, P[set_idx]))
     iter = ([
@@ -62,21 +62,19 @@ function move_iterator(P::Partition, set_idx, elem)
 end
 
 function learn_partitions(ms, us, partition, partition_map, core)
-    @info "Learn next partitions" string(partition) partition_map core
-    
-        
-        Iterators.flatten((if is_eq(x)
-            # @info "" partition_map[id(x)]
-            (p1, i1), (p2, i2) = partition_map[id(x)]
-            # index1, index2 = partition[p1][i1], partition[p2][i2]
-            it1 = move_iterator(partition, p1, i1)
-            it2 = move_iterator(partition, p2, i2)
-            Iterators.flatten((it1, it2))
-        elseif is_distinct(x)
-
-        else
-            error("No equality/inequality: $(x)")
-        end for x in core))
+    @debug "Learn next partitions" string(partition) partition_map core
+    Iterators.flatten((if is_eq(x)
+        # @info "" partition_map[id(x)]
+        (p1, i1), (p2, i2) = partition_map[id(x)]
+        # index1, index2 = partition[p1][i1], partition[p2][i2]
+        it1 = move_iterator(partition, p1, i1)
+        it2 = move_iterator(partition, p2, i2)
+        Iterators.flatten((it1, it2))
+    elseif is_distinct(x)
+        error("Unimplemented")
+    else
+        error("No equality/inequality: $(x)")
+    end for x in core))
 end
 
 function solve_constraints(s::Solver, mss, uss, partitions, current=1)
@@ -86,6 +84,7 @@ function solve_constraints(s::Solver, mss, uss, partitions, current=1)
     partition_map = Dict{UInt32, Pair{Pair{Int,Int},Pair{Int,Int}}}()
     for (t, indices) in enumerate(partition)
         usum = us[indices[1]]
+        # all m in one set of partition are equal
         for i = 2:length(indices)
             j, k = indices[i-1], indices[i]
             ass = (ms[j] == ms[k])
@@ -94,7 +93,10 @@ function solve_constraints(s::Solver, mss, uss, partitions, current=1)
             @assert !haskey(partition_map, id(ass))
             partition_map[id(ass)] = (t=>j) => (t=>k)
         end
+        # the sum of all u in one set of partition has to be 0
         add(s, usum == 0)
+        # if there is more than one set in the partition, 
+        # then the m in different sets have to be different 
         if t > 1
             j, k = first(partition[t-1]), first(indices)
             ass = ms[j] != ms[k]
@@ -117,35 +119,31 @@ function solve_constraints(s::Solver, mss, uss, partitions, current=1)
     #     end
     # end
 
-    @debug "Assumptions" assumptions
     res = check(s, assumptions)
+    @debug "Assumptions" assumptions res
     push!(g_partition_history, partition)
     if res == Z3.sat
         if current == length(mss)
-            # for (i,(m,u)) in enumerate(zip(mss[1], uss[1]))
-            #     @info "Term $i" m u
-            # end
-            # @info "" assumptions get_model(s)
+            # all C-finite constraints are satisfied
+            # add assumptions to get back values for Z3
+            # TODO: is this really needed?
             for a in assumptions
                 add(s, a)
             end
-            # println(s)
-            @info "" check(s) == Z3.sat get_model(s)
-            # @info "" get_model(s) mss uss
+            check(s)
+            @debug "" check(s) == Z3.sat get_model(s)
             return true
+        else
+            # there are C-finite constraints left; continue with current+1
+            for a in assumptions
+                add(s, a)
+            end
+            return solve_constraints(s, mss, uss, partitions, current+1)
         end
-        for a in assumptions
-            add(s, a)
-        end
-        @info "Next constraint" s
-        return solve_constraints(s, mss, uss, partitions, current+1)
     elseif res == Z3.unsat
-        @info "UNSAT"
         for ps in learn_partitions(ms, us, partition, partition_map, unsat_core(s))
-            # @info "" ps
             parts = deepcopy(partitions)
             parts[current] = ps
-            # @info "Next partition" s
             pop(s, 1)
             solve_constraints(s, mss, uss, parts, current) && return true
         end
