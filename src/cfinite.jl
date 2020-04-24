@@ -6,8 +6,9 @@ end
 function (x::NExp{S})(n::Int) where {S}
     exp = MultivariatePolynomials.subs(x.exp, mkvar(S)=>n)
     @assert isconstant(exp)
-    # ex = convert(Int, exp)
-    x.base^exp
+    iszero(exp) && return 0
+    d = coefficient(first(exp))
+    x.base^d
 end
 
 _exp_map = Dict{NExp,Var}()
@@ -74,7 +75,8 @@ function cfinite_constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Sy
     cs = ClauseSet()
     qs = destructpoly([expr.poly], split_vars)
     for (i, q) in enumerate(qs)
-        subs = [k=>v.base^v.exp(1) for (k, v) in expr.subs]
+        # subs = [k=>v.base^v.exp(1) for (k, v) in expr.subs]
+        subs = [k=>v(1) for (k, v) in expr.subs]
         cfin = CFiniteExpr{S}(q, expr.subs)
         ms, us = destructterm(cfin.poly, collect(keys(cfin.subs)))
         ms = [MultivariatePolynomials.subs(m, subs...) for m in ms]
