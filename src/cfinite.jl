@@ -6,7 +6,7 @@ end
 function (x::NExp{S})(n::Int) where {S}
     exp = MultivariatePolynomials.subs(x.exp, mkvar(S)=>n)
     @assert isconstant(exp)
-    iszero(exp) && return 0
+    iszero(exp) && return 1
     d = coefficient(first(exp))
     x.base^d
 end
