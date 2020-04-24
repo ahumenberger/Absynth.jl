@@ -65,7 +65,11 @@ Z3.CxxWrap.@cxxdereference function Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}
     eval(t)
 end
 
-Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{EQ}) = Z3Expr(ctx, vs, c.poly) == 0
+Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{EQ})  = Z3Expr(ctx, vs, c.poly) == 0
 Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{NEQ}) = Z3Expr(ctx, vs, c.poly) != 0
+Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{LT})  = Z3Expr(ctx, vs, c.poly) <  0
+Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{LEQ}) = Z3Expr(ctx, vs, c.poly) <= 0
+Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{GT})  = Z3Expr(ctx, vs, c.poly) >  0
+Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{GEQ}) = Z3Expr(ctx, vs, c.poly) >= 0
 Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Clause) =
     length(c) > 1 ? or(Z3Expr(ctx, vs, x) for x in c) : Z3Expr(ctx, vs, first(c))

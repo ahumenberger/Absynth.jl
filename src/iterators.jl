@@ -50,9 +50,11 @@ struct Solutions
     maxsol::Number
     timeout::Int
 
-    function Solutions(p::SynthesisProblem; maxsol::Number=1, timeout::Int=2, solver::Type{<:NLSolver}=Z3)
+    function Solutions(p::SynthesisProblem; maxsol::Number=1, timeout::Int=2, solver::Type{<:NLSolver}=Z3Solver, constraints::ClauseSet=ClauseSet())
         @assert maxsol >= 1
-        new(create_solver(p, solver), p, maxsol, timeout)
+        s = create_solver(p, solver)
+        add!(s, constraints)
+        new(s, p, maxsol, timeout)
     end
 end
 
@@ -80,7 +82,7 @@ solutions(strategy; kwargs...) =
 models(strategy; kwargs...) =
     Iterators.filter(Absynth.issat, solutions(strategy; kwargs...))
 
-function synth(inv::Invariant; timeout=2, solver=Z3, kwargs...)
+function synth(inv::Invariant; timeout=2, solver=Z3Solver, kwargs...)
     progress = ProgressUnknown("I'm trying hard:")
     strategy = strategy_mixed(inv, program_variables(inv); kwargs...)
     for s in solutions(strategy; maxsol=1, timeout=timeout, solver=solver)

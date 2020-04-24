@@ -31,6 +31,7 @@ export Invariant, @invariant
 export strategy_all, strategy_permutations, strategy_partitions, strategy_fixed, strategy_mixed
 export solutions, models, synth
 export RecSystem, loop
+export @cstr
 
 include("../benchmark/examples.jl")
 

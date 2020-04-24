@@ -1,4 +1,4 @@
-export AbstractConstraint, CFiniteConstraint, Constraint, Clause, ClauseSet
+export AbstractConstraint, CFiniteConstraint, Constraint, Clause, ClauseSet, @cstr
 export EQ, NEQ, LT, LEQ, GT, GEQ
 export variables
 
@@ -50,8 +50,8 @@ function expand(c::CFiniteConstraint{R}) where {R}
 end
 
 expand(c::T) where {T<:AbstractConstraint} = ClauseSet(Clause(c))
-expand(c::Clause) = foldl(|, (expand(x) for x in c))
-expand(c::ClauseSet) = foldl(&, (expand(x) for x in c))
+expand(c::Clause) = isempty(c) ? c : foldl(|, (expand(x) for x in c))
+expand(c::ClauseSet) = isempty(c) ? c : foldl(&, (expand(x) for x in c))
 
 struct Constraint{ConstraintRel} <: AbstractConstraint
     poly::Union{Expr,Symbol,Number}
@@ -131,10 +131,46 @@ function Base.show(io::IO, c::Clause)
     end
 end
 
-function Base.show(io::IO, cs::ClauseSet)
+function Base.show(io::IO, ::MIME"text/plain", cs::ClauseSet)
     print(io, "$(length(cs))-element ClauseSet:")
     for c in cs
         print(io, "\n ")
         print(IOContext(io, :compact => true), c)
     end
+end
+
+# ------------------------------------------------------------------------------
+
+macro cstr(expr::Expr)
+    c = atom_walk(expr) do ex
+        @match ex begin
+            x_ && y_ => :($x & $y)
+            x_ || y_ => :($x | $y)
+            x_ == 0  => Constraint{EQ}(x)
+            0  == x_ => Constraint{EQ}(x)
+            x_ == y_ => Constraint{EQ}(:($x-$y))
+            x_ != 0  => Constraint{NEQ}(x)
+            0  != x_ => Constraint{NEQ}(x)
+            x_ != y_ => Constraint{NEQ}(:($x-$y))
+            x_ < 0  => Constraint{LT}(x)
+            0  < x_ => Constraint{LT}(x)
+            x_ < y_ => Constraint{LT}(:($x-$y))
+            x_ <= 0  => Constraint{LEQ}(x)
+            0  <= x_ => Constraint{LEQ}(x)
+            x_ <= y_ => Constraint{LEQ}(:($x-$y))
+            x_ > 0  => Constraint{GT}(x)
+            0  > x_ => Constraint{GT}(x)
+            x_ > y_ => Constraint{GT}(:($x-$y))
+            x_ >= 0  => Constraint{GEQ}(x)
+            0  >= x_ => Constraint{GEQ}(x)
+            x_ >= y_ => Constraint{GEQ}(:($x-$y))
+            x_Symbol => x
+            x_Number => x
+            _        => @error("Invalid constraint")
+        end
+    end
+    if c isa AbstractConstraint
+        return ClauseSet(Clause(c))
+    end
+    c
 end
