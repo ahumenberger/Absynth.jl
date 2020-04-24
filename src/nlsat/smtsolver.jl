@@ -25,7 +25,7 @@ parsefunc(::SMTSolver) = parse_output_smt
 parsefunc(::SMTSolverYices) = parse_output_yices
 
 add_vars!(s::SMTSolver, d::Dict{Symbol,Type}) = push!(s.vars, d...)
-add!(s::SMTSolver, cs::ClauseSet) = s.cs &= cs
+add!(s::SMTSolver, cs::ClauseSet) = s.cs &= expand(cs)
 
 function write_header(io::IO, s::SMTSolver)
     write(io, "(set-option:produce-models true)\n")
@@ -121,7 +121,7 @@ function openproc(parse::Function, cmd::Cmd; timeout=-1)
 end
 
 function parse_output_smt(s::Array{String})
-    m = NLModel()
+    m = Dict{Symbol, Rational{Int}}()
     sexpr = parse_sexpr(join(s))
     for x in sexpr.vec
         @assert length(x.vec) == 2
@@ -133,7 +133,7 @@ function parse_output_smt(s::Array{String})
 end
 
 function parse_output_yices(s::Array{String})
-    m = NLModel()
+    m = Dict{Symbol, Rational{Int}}()
     sexpr = parse_sexpr(string("(", join(s), ")"))
     for x in sexpr.vec
         @assert length(x.vec) == 3 && x.vec[1] == :(=) "$x"
