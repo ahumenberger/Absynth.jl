@@ -27,7 +27,7 @@ function solve(s::Z3Solver; timeout::Int=-1)
         push!(z3vars, k=>real_const(ctx, string(k)))
     end
     
-    z3 = mk_solver()
+    z3 = Solver(ctx)
     for cl in s.hard_clauses
         add(z3, Z3Expr(ctx, z3vars, cl))
     end
