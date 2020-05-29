@@ -1,47 +1,3 @@
-const SymOrNum = Union{Symbol,Number}
-
-@enum MatrixShape FullSymbolic UpperTriangular UnitUpperTriangular Companion UserSpecific
-
-_FullSymbolic(s::Int)        = [mkpoly(mkvar("b$i$j")) for i in 1:s, j in 1:s]
-_UpperTriangular(s::Int)     = [j>=i ? mkpoly(mkvar("b$i$j")) : mkpoly(0) for i in 1:s, j in 1:s]
-_UnitUpperTriangular(s::Int) = [j>i ? mkpoly(mkvar("b$i$j")) : i==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
-_Companion(s::Int)           = [i==s ? mkpoly(mkvar("b$i$j")) : i+1==j ? mkpoly(1) : mkpoly(0) for i in 1:s, j in 1:s]
-_UserSpecific(s::Int)        = error("Should not be called")
-
-function _add_const_one(M::Matrix)
-    s = size(M, 1) + 1
-    col = [mkpoly(mkvar("b$i$s")) for i in 1:s-1]
-    _add_row_one(hcat(M, col))
-end
-
-function _add_row_one(M::Matrix)
-    T = eltype(M)
-    M = vcat(M, zeros(T, 1, size(M, 2)))
-    M[end,end] = one(T)
-    M
-end
-
-function initmatrix(vars::Vector{Symbol}, params::Vector{SymOrNum})
-    rows, cols = length(vars), length(params)
-    A = fill(mkpoly(1), (rows,cols))
-
-    for i in 1:rows, j in 1:cols
-        u, v = vars[i], params[j]
-        if u == v
-            A[i,j] = j == findfirst(x->x==u, params) ? 1 : 0
-        else
-            A[i,j] = findfirst(x->x==u, params) === nothing ? mkvar("a$i$j") : 0
-        end
-    end
-    A
-end
-
-function bodymatrix(s::Int, shape::MatrixShape)
-    f = Meta.parse(string("_", shape))
-    eval(:($f($s)))
-end
-
-# ------------------------------------------------------------------------------
 
 init_var(s::Symbol) = Symbol(string(s, "00"))
 
@@ -102,24 +58,10 @@ struct RecurrenceTemplate
     params::Vector{SymOrNum}
     body::Matrix{<:Poly}
     init::Matrix{<:Poly}
-    shape::MatrixShape
 end
 
-function RecurrenceTemplate(vars::Vector{Symbol}, shape::MatrixShape; constone::Bool=true, params::Vector{Symbol}=Symbol[])
-    size = length(vars)
-    params = SymOrNum[params; 1]
-
-    B = bodymatrix(size, shape)
-    A = initmatrix(vars, params)
-
-    if constone
-        push!(vars, CONST_ONE_SYM)
-        B = _add_const_one(B)
-        A = _add_row_one(A)
-    end
-    
-    RecurrenceTemplate(vars, params, B, A, shape)
-end
+RecurrenceTemplate(r::RecTemplate, vars::Vector{Symbol}) =
+    RecurrenceTemplate(vars, r.params, r.body, r.init)
 
 Base.size(rt::RecurrenceTemplate) = length(rt.vars)
 

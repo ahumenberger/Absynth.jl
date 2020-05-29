@@ -44,6 +44,87 @@ strategy_mixed(inv::Invariant, vars::Vector{Symbol}; kwargs...) =
 
 # ------------------------------------------------------------------------------
 
+abstract type AbstractPermutations end
+struct AllPermutations <: AbstractPermutations
+    vars::Vector{Symbol}
+end
+struct FixedPermutations <: AbstractPermutations
+    perms::Vector{Vector{Symbol}}
+end
+
+FixedPermutations(ps::Vector{Symbol}...) = FixedPermutations(collect(ps))
+
+perms(p::AllPermutations) = Combinatorics.permutations(p.vars)
+perms(p::FixedPermutations) = p.perms
+
+function permutations(r::RecTemplate, p::AbstractPermutations)
+    if has_constant_one(r)
+        return ([vs; CONST_ONE_SYM] for vs in perms(p))
+    end
+    return perms(p.vars)
+end
+
+Base.summary(io::IO, p::AllPermutations; uppercase=true) = print(io, uppercase ? "A" : "a", "ll permutations of $(p.vars)")
+Base.summary(io::IO, p::FixedPermutations; uppercase=true) = print(io, uppercase ? "F" : "f", "ixed permutations $(p.perms)")
+Base.show(io::IO, p::AbstractPermutations) = summary(io, p)
+
+
+abstract type AbstractPartitions end
+struct AllPartitions <: AbstractPartitions
+    n::Int
+end
+struct FixedPartitions <: AbstractPartitions
+    parts::Vector{Vector{Int}}
+end
+
+FixedPartitions(ps::Vector{Int}...) = FixedPartitions(collect(ps))
+
+partitions(p::AllPartitions) = partitions(p.n)
+partitions(p::FixedPartitions) = p.parts
+
+Base.summary(io::IO, p::AllPartitions; uppercase=true) = print(io, uppercase ? "A" : "a", "ll integer partitions of $(p.n)")
+Base.summary(io::IO, p::FixedPartitions; uppercase=true) = print(io, uppercase ? "F" : "f", "ixed partitions $(p.parts)")
+Base.show(io::IO, p::AbstractPartitions) = summary(io, p)
+
+# ------------------------------------------------------------------------------
+
+struct Strategy
+    inv::Invariant
+    rec::RecTemplate
+    perms::AbstractPermutations
+    parts::AbstractPartitions
+
+    function Strategy(inv::Invariant, rec::RecTemplate; perms::AbstractPermutations, parts::AbstractPartitions)
+        inv_vars = program_variables(inv)
+        rec_vars = variables(rec)
+        @assert issubset(inv_vars, rec_vars)
+        new(inv, rec, perms, parts)
+    end
+end
+
+synthesis_problems(s::Strategy) =
+    synthesis_problems(s.inv, recurrence_systems(s.rec, permutations(s.rec, s.perms)), partitions(s.parts))
+
+recurrence_systems(r::RecTemplate, perms) =
+    (RecurrenceTemplate(r, copy(p)) for p in perms)
+
+solutions(s::Strategy; kwargs...) = solutions(synthesis_problems(s; kwargs...))
+models(s::Strategy; kwargs...) = models(synthesis_problems(s; kwargs...))
+
+function Base.show(io::IO, s::Strategy)
+    compact = get(io, :compact, false)
+    # if compact
+        print(io, "$(typeof(s)) with ")
+        summary(io, s.perms, uppercase=false)
+        print(io, " and ")
+        summary(io, s.parts, uppercase=false)
+    # else
+        # print(io, "$(typeof(r)) for some permutation σ of $(vars)")
+    # end
+end
+
+# ------------------------------------------------------------------------------
+
 struct Solutions
     solver::NLSolver
     problem::SynthesisProblem

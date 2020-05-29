@@ -3,7 +3,7 @@ to_assignments(xs::Vector, ys::Vector) = ["$x = $y" for (x, y) in zip(xs, ys)]
 to_lines(xs::Vector{String}, indent::Int) = join(xs, "\n$(repeat("    ", indent))")
 to_list(xs) = join(xs, ", ")
 
-prettify_number(x::Rational) = iszero(numerator(x)) || isone(denominator(x)) ? numerator(x) : x
+prettify_number(x::Number) = isinteger(x) ? convert(Int, x) : x
 prettify_number(x::Poly) = iszero(x) ? 0 : isconstant(x) ? prettify_number(coefficient(x[1])) : x
 prettify_number(x) = x
 
@@ -47,6 +47,7 @@ function _print_recsystem(io::IO, vars, body, init)
     zero, one = "0", "1"
 
     _vars = sprint(Base.print_matrix, vars)
+    _vars = Base.replace(_vars, "\""=>"")
     # vars0 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$zero$rp", vars)), "\""=>"")
     # vars1 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$rp", vars)), "\""=>"")
     # vars2 = Base.replace(sprint(Base.print_matrix, map(x->string(x)*"$lp$lc$plus$one$rp", vars)), "\""=>"")

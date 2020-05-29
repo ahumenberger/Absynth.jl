@@ -1,9 +1,11 @@
 export mkvar, mkpoly
 
-mkpoly(x::Expr) = eval(symbol_walk(y->mkvar(y), x)) * one(Polynomial{true,Int})
-mkpoly(x::Symbol) = mkvar(x) * one(Polynomial{true,Int})
-mkpoly(x::Number) = iszero(x) ? zero(Polynomial{true,Int}) : one(Polynomial{true,Int}) * x
-mkpoly(x::T) where {T<:AbstractVariable} = x * one(Polynomial{true,Int})
+const PolyT = Polynomial{true,Float64}
+
+mkpoly(x::Expr) = eval(symbol_walk(y->mkvar(y), x)) * one(PolyT)
+mkpoly(x::Symbol) = mkvar(x) * one(PolyT)
+mkpoly(x::Number) = iszero(x) ? zero(PolyT) : one(PolyT) * x
+mkpoly(x::T) where {T<:AbstractVariable} = x * one(PolyT)
 
 _varmap = Dict{Symbol, AbstractVariable}()
 
