@@ -308,7 +308,8 @@ end
 
 function _show(io::IO, r::Union{RecurrenceTemplate,RecSystem})
     init = r.init * map(mkpoly, r.params)
-    _print_recsystem(io, r.vars, r.body, init)
+    vars = [v == CONST_ONE_SYM ? "1" : "$v" for v in r.vars]
+    _print_recsystem(io, vars, r.body, init)
 end
 
 function Base.show(io::IO, s::SynthesisResult)
