@@ -9,6 +9,12 @@ function mk_solver()
     Z3.mk_solver(t)
 end
 
+function Int(x::Z3.Expr)
+    @assert is_int(x)
+    get_numeral_int(x)
+end
+Rational{Int}(x::Z3.Expr) = Int(numerator(x)) // Int(denominator(x))
+
 function parse_model(m::Model)
     nlmodel = Dict{Symbol, Rational{Int}}()
     for (k,v) in consts(m)
@@ -54,6 +60,8 @@ Z3.CxxWrap.@cxxdereference function Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}
                 y = rationalize(x)
                 real_val(ctx, numerator(y), denominator(y))
             # end
+        elseif x isa Rational
+            real_val(ctx, numerator(y), denominator(y))
         elseif x isa Int
             real_val(ctx, x)
         elseif issymbol(x)
@@ -72,4 +80,4 @@ Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{LEQ}) = Z3Expr(ctx, 
 Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{GT})  = Z3Expr(ctx, vs, c.poly) >  0
 Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Constraint{GEQ}) = Z3Expr(ctx, vs, c.poly) >= 0
 Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, c::Clause) =
-    length(c) > 1 ? or(Z3Expr(ctx, vs, x) for x in c) : Z3Expr(ctx, vs, first(c))
+    length(c) > 1 ? or([Z3Expr(ctx, vs, x) for x in c]) : Z3Expr(ctx, vs, first(c))
