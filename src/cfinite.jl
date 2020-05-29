@@ -8,7 +8,7 @@ function (x::NExp{S})(n::Int) where {S}
     @assert isconstant(exp)
     iszero(exp) && return 1
     d = coefficient(first(exp))
-    x.base^d
+    x.base^convert(Int, d)
 end
 
 _exp_map = Dict{NExp,Var}()
