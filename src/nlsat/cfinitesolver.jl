@@ -154,8 +154,8 @@ function solve_constraints(s::Solver, mss, uss, partitions, current=1)
 end
 
 function check_cfinite(s::CFiniteSolver, z3::Solver, vars, soft_clauses)
-    uss = [[Z3Expr(ctx(z3), vars, x) for x in c[1].us] for c in soft_clauses]
-    mss = [[Z3Expr(ctx(z3), vars, x) for x in c[1].ms] for c in soft_clauses]
+    uss = [[Z3Expr(ctx(z3), vars, x) for x in first(c).us] for c in soft_clauses]
+    mss = [[Z3Expr(ctx(z3), vars, x) for x in first(c).ms] for c in soft_clauses]
 
     soft_clauses = Z3Expr[u == 0 for u in Iterators.flatten(uss)]
     @debug "Soft clauses" soft_clauses
