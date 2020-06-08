@@ -61,7 +61,7 @@ function permutations(r::RecTemplate, p::AbstractPermutations)
     if has_constant_one(r)
         return ([vs; CONST_ONE_SYM] for vs in perms(p))
     end
-    return perms(p.vars)
+    return perms(p)
 end
 
 Base.summary(io::IO, p::AllPermutations; uppercase=true) = print(io, uppercase ? "A" : "a", "ll permutations of $(p.vars)")
@@ -79,7 +79,7 @@ end
 
 FixedPartitions(ps::Vector{Int}...) = FixedPartitions(collect(ps))
 
-partitions(p::AllPartitions) = partitions(p.n)
+partitions(p::AllPartitions) = Combinatorics.partitions(p.n)
 partitions(p::FixedPartitions) = p.parts
 
 Base.summary(io::IO, p::AllPartitions; uppercase=true) = print(io, uppercase ? "A" : "a", "ll integer partitions of $(p.n)")
@@ -88,7 +88,12 @@ Base.show(io::IO, p::AbstractPartitions) = summary(io, p)
 
 # ------------------------------------------------------------------------------
 
-struct Strategy
+abstract type AbstractStrategy end
+
+solutions(s::AbstractStrategy; kwargs...) = solutions(synthesis_problems(s); kwargs...)
+models(s::AbstractStrategy; kwargs...) = models(synthesis_problems(s); kwargs...)
+
+struct Strategy <: AbstractStrategy
     inv::Invariant
     rec::RecTemplate
     perms::AbstractPermutations
@@ -108,9 +113,6 @@ synthesis_problems(s::Strategy) =
 recurrence_systems(r::RecTemplate, perms) =
     (RecurrenceTemplate(r, copy(p)) for p in perms)
 
-solutions(s::Strategy; kwargs...) = solutions(synthesis_problems(s; kwargs...))
-models(s::Strategy; kwargs...) = models(synthesis_problems(s; kwargs...))
-
 function Base.show(io::IO, s::Strategy)
     compact = get(io, :compact, false)
     # if compact
@@ -121,6 +123,28 @@ function Base.show(io::IO, s::Strategy)
     # else
         # print(io, "$(typeof(r)) for some permutation σ of $(vars)")
     # end
+end
+
+struct CombinedStrategy <: AbstractStrategy
+    ls::Vector{Strategy}
+
+    CombinedStrategy(ls::Strategy...) = new(collect(ls))
+end
+
+synthesis_problems(s::CombinedStrategy) = 
+    Iterators.flatten(synthesis_problems(t) for t in s.ls)
+
+
+function IterativeStrategy(inv::Invariant; constant_one::Bool=true)
+    vars = program_variables(inv)
+    size = constant_one ? length(vars)+1 : length(vars)
+    rec1 = RecTemplate(copy(vars), constant_one=constant_one, shape=UnitUpperTriangular)
+    str1 = Strategy(inv, rec1, perms=AllPermutations(vars), parts=FixedPartitions([size]))
+    rec2 = RecTemplate(copy(vars), constant_one=constant_one, shape=UpperTriangular)
+    str2 = Strategy(inv, rec2, perms=AllPermutations(vars), parts=AllPartitions(size))
+    rec3 = RecTemplate(copy(vars), constant_one=constant_one, shape=FullSymbolic)
+    str3 = Strategy(inv, rec3, perms=FixedPermutations(vars), parts=AllPartitions(size))
+    return CombinedStrategy(str1, str2, str3)
 end
 
 # ------------------------------------------------------------------------------
@@ -163,9 +187,9 @@ solutions(strategy; kwargs...) =
 models(strategy; kwargs...) =
     Iterators.filter(Absynth.issat, solutions(strategy; kwargs...))
 
-function synth(inv::Invariant; timeout=2, solver=Z3Solver, kwargs...)
+function synth(inv::Invariant; timeout=2, solver=Z3Solver, constant_one=true, kwargs...)
     progress = ProgressUnknown("I'm trying hard:")
-    strategy = strategy_mixed(inv, program_variables(inv); kwargs...)
+    strategy = IterativeStrategy(inv; constant_one=constant_one)
     for s in solutions(strategy; maxsol=1, timeout=timeout, solver=solver)
         if issat(s)
             finish!(progress)

@@ -79,7 +79,7 @@ struct ClosedFormTemplate
     multiplicities::Vector{Int}
 
     function ClosedFormTemplate(v::Vector{Symbol}, p::Vector{SymOrNum}, m::Vector{Int})
-        @assert length(v) == sum(m) "The sum of multiplicites has to match the number of variables."
+        @assert length(v) == sum(m) "The sum of multiplicites has to match the number of variables. Got $(sum(m)), need $(length(v))"
         new(v, p, m)
     end
 end
