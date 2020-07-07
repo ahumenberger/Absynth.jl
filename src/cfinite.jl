@@ -1,5 +1,5 @@
 struct NExp{S}
-    base::Var
+    base::Union{Poly,Var}
     exp::Union{Poly,Var}
 end
 
@@ -7,8 +7,7 @@ function (x::NExp{S})(n::Int) where {S}
     exp = MultivariatePolynomials.subs(x.exp, mkvar(S)=>n)
     @assert isconstant(exp)
     iszero(exp) && return 1
-    d = coefficient(first(exp))
-    x.base^convert(Int, d)
+    x.base^convert(Int, exp)
 end
 
 _exp_map = Dict{NExp,Var}()
@@ -56,6 +55,17 @@ function order(expr::CFiniteExpr)
     all(isone, ms) ? 1 : length(ms)
 end
 
+function normalize(expr::CFiniteExpr{S}) where {S}
+    s = mkvar(S)
+    subs = [k=>k*v(0) for (k, v) in expr.subs]
+    poly = MultivariatePolynomials.subs(expr.poly, subs...)
+    nexp = Dict(k=>NExp{S}(v.base, v.exp-v.exp(0)) for (k, v) in expr.subs)
+    subs = [k=>k^convert(Int, v.exp(1)) for (k, v) in nexp]
+    poly = MultivariatePolynomials.subs(poly, subs...)
+    nexp = Dict(k=>NExp{S}(v.base, s) for (k, v) in expr.subs)
+    CFiniteExpr{S}(poly, nexp)
+end
+
 function constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Symbol[]) where {S}
     cs = ClauseSet()
     # qs = map(x->CFiniteExpr{S}(x, expr.subs), destructpoly(expr.poly, split_vars))
@@ -73,12 +83,14 @@ end
 
 function cfinite_constraints(expr::CFiniteExpr{S}; split_vars::Vector{Symbol}=Symbol[]) where {S}
     cs = ClauseSet()
+    expr = normalize(expr)
     qs = destructpoly([expr.poly], split_vars)
+    @debug "" expr qs
     for (i, q) in enumerate(qs)
-        # subs = [k=>v.base^v.exp(1) for (k, v) in expr.subs]
         subs = [k=>v(1) for (k, v) in expr.subs]
         cfin = CFiniteExpr{S}(q, expr.subs)
         ms, us = destructterm(cfin.poly, collect(keys(cfin.subs)))
+        @debug "" expr.subs subs cfin ms us
         ms = [MultivariatePolynomials.subs(m, subs...) for m in ms]
         ms, us = factor(ms, collect(us))
         cs &= CFiniteConstraint{EQ}(us, ms)

@@ -8,6 +8,10 @@ function_walk(f, expr) = postwalk(expr) do x
     @capture(x, g_(a__)) && issymbol(g) ? f(g, a) : x
 end
 
+geometric_walk(f, expr) = prewalk(expr) do x
+    @capture(x, t_(g_,a_)) && t == :^ && issymbol(a) ? f(g, a) : x
+end
+
 symbol_walk(f, ex) = postwalk(x -> issymbol(x) ? f(x) : x, ex)
 
 atom_walk(f, x) = walk(x, x -> (@capture(x, y_(ys__)) && issymbol(y)) ? f(x) : atom_walk(f, x) , f)

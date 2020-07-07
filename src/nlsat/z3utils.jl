@@ -22,12 +22,7 @@ function parse_model(m::Model)
         if is_int(v)
             push!(nlmodel, sym=>Int(v))
         elseif is_algebraic(v)
-            # @info "" v num_args(v) is_app(v) 
-            # @info "" algebraic_poly(v) algebraic_i(v)
-
-            # parse_algebraic(v)
-            approx = String(get_decimal_string(v, 20))[1:end-1]
-            @info typeof(approx)
+            approx = String(get_decimal_string(v, 10))[1:end-1]
             @warn "Algebraic numbers not yet supported, got $(v), returning approximation $(approx)"
             push!(nlmodel, sym=>parse(BigFloat, approx))
         elseif is_real(v)
@@ -39,17 +34,6 @@ function parse_model(m::Model)
 end
 
 # ------------------------------------------------------------------------------
-
-# function parse_expr(x::Z3Expr)
-#     @info arg(x, 0)
-# end
-
-# function parse_algebraic(x::Z3Expr)
-#     @assert is_algebraic(x)
-#     @info x num_args(x)
-#     parse_expr(arg(x, 0))
-
-# end
 
 Z3.CxxWrap.@cxxdereference function Z3Expr(ctx::Context, vs::Dict{Symbol,Z3Expr}, ex::XExpr)
     t = postwalk(ex) do x

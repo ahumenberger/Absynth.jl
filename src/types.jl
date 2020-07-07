@@ -194,6 +194,12 @@ function cstr_algrel(sp::SynthesisProblem)
             @assert length(args) == 1 "Invariant not properly preprocessed"
             :($(closed_form(sp.ct, sp.inv.lc, func, args[1])))
         end
+        expr = geometric_walk(expr) do base, exp
+            @assert exp == sp.inv.lc
+            parg = mkpoly(exp)
+            pair = replacement_pair(NExp{exp}(mkpoly(base), parg))
+            CFiniteExpr{exp}(pair[1], Dict(pair))
+        end
         cfin = eval(expr)
         splitvars = Symbol[params(Symbol, sp); sp.inv.lc]
         cstr = cfinite_constraints(cfin; split_vars=splitvars)

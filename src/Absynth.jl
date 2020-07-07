@@ -1,6 +1,6 @@
 module Absynth
 
-using MacroTools: walk, postwalk, @capture, @match, replace, striplines
+using MacroTools: walk, postwalk, prewalk, @capture, @match, replace, striplines
 using Combinatorics
 using LinearAlgebra
 using MultivariatePolynomials

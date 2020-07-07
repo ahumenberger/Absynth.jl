@@ -35,9 +35,9 @@ end
 Base.:~(c::CFiniteConstraint{EQ}) = CFiniteConstraint{NEQ}(c.us, c.ms)
 Base.:~(c::CFiniteConstraint{NEQ}) = CFiniteConstraint{EQ}(c.us, c.ms)
 
-function expand(c::CFiniteConstraint{R}) where {R}
+function expand(c::CFiniteConstraint{R}, limit=length(c.us)) where {R}
     cs = ClauseSet()
-    for i in 1:length(c.us)
+    for i in 1:limit
         ms = map(x->:($x^($i-1)), c.ms)
         terms = [:($u*$m) for (u,m) in zip(c.us,ms)]
         if length(terms) == 1

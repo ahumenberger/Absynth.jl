@@ -26,10 +26,11 @@ function maxsat(s::Solver, cs::Vector{<:Z3Expr})
         cs1 = relax_core(s, unsat_core(s), cs1)
     end
     @debug "Maxsat" cost res==Z3.sat reason_unknown(s)
+    res != Z3.sat && return res, -1, nothing
     satisfied = [c for c in cs0 if is_true(Z3.eval(get_model(s), c, false))]
     m = get_model(s)
     pop(s, 1)
     @debug "Maxsat" satisfied m
-    res, m
+    res, cost, m
 end
 
