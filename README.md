@@ -43,3 +43,7 @@ quote
     end
 end
 ```
+
+## Publications
+
+1. A. Humenberger, N. Bjørner, L. Kovács. Algebra-based Loop Synthesis. In *Integrated Formal Methods (iFM)*, 2020. To appear.
