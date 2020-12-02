@@ -17,13 +17,13 @@ You can check if Absynth can find Z3 or Yices by trying to call the constructor 
 Then we can create a loop invariant which is allowed to be a Boolean combination of polynomial equations.
 
 ```julia
-julia> inv = @invariant a == b^2
+julia> I = @invariant a == b^2
 ```
 
 The result of calling `synth` is in fact a first-order recurrence system.
 
 ```julia
-julia> recsys = synth(inv, solver=Z3)
+julia> recsys = synth(I, solver=Z3Solver)
 RecSystem of size 3:
   ⎛ a(n+1)  ⎞   ⎛ 1  2  1 ⎞⎛ a(n)  ⎞	⎛ a(0)  ⎞   ⎛ 1//16 ⎞
   ⎜ b(n+1)  ⎟ = ⎜ 0  1  1 ⎟⎜ b(n)  ⎟	⎜ b(0)  ⎟ = ⎜ -1//4 ⎟
