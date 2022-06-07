@@ -46,4 +46,8 @@ end
 
 ## Publications
 
-1. A. Humenberger, N. Bjørner, L. Kovács. Algebra-based Loop Synthesis. In *Integrated Formal Methods (iFM)*, 2020. To appear.
+1. [Humenberger, A., Bjørner, N., Kovács, L. (2020). Algebra-Based Loop Synthesis. In: Dongol, B., Troubitsyna, E. (eds) Integrated Formal Methods. IFM 2020.](https://doi.org/10.1007/978-3-030-63461-2_24)
+
+2. [Humenberger, A., Kovács, L. (2021). Algebra-Based Synthesis of Loops and Their Invariants (Invited Paper). In: Henglein, F., Shoham, S., Vizel, Y. (eds) Verification, Model Checking, and Abstract Interpretation. VMCAI 2021](https://doi.org/10.1007/978-3-030-67067-2_2)
+
+3. [A Humenberger, D Amrollahi, N Bjørner, L Kovács - Formal Aspects of Computing, 2022](https://dl.acm.org/doi/abs/10.1145/3527458)
