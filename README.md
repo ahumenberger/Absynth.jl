@@ -5,6 +5,11 @@ Absynth is a Julia package for synthesizing loops from a given polynomial loop i
 
 ## Quick start
 
+First of all, you need to make sure that you have `Julia` installed on your machine. 
+
+Please refer to https://julialang.org/downloads/ if you do not have Julia installed. 
+
+
 ```julia
 julia> ] add Absynth
 julia> using Absynth
